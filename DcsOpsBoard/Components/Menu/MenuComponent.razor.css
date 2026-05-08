@@ -1,0 +1,26 @@
+
+#top-menu-body {
+    background-color: #222430e7;
+    height: 5vh;
+    width: 80vw;
+    overflow: hidden;
+    position: absolute;
+    top: 0;
+    left: 10vw;
+    transition: height 1s ease;
+    z-index: 1000;
+}
+
+#top-menu-body:hover {
+    height: 95vh;
+}
+
+#top-menu-header {
+    height: 5vh;
+    width: 100%;
+}
+
+#top-menu-content {
+    height: 90vh;
+    width: 100%;
+}

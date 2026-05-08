@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "C#: 2dTileExporter Release",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build 2dTileExporter (Release)",
+            "program": "${workspaceFolder}/SupportingProjects/2dTileExporter/bin/Release/net10.0/2dTileExporter.dll",
+            "cwd": "${workspaceFolder}/SupportingProjects/2dTileExporter",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        }
+    ]
+}

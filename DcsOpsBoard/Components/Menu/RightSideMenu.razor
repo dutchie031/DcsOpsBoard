@@ -1,0 +1,31 @@
+﻿@using DcsOpsBoard.Services
+@rendermode InteractiveServer
+
+@inject IUserMapSettings UserMapSettings
+
+@code {
+
+    protected override void OnInitialized()
+    {
+        UserMapSettings.OnSettingsChanged += StateHasChanged;
+        base.OnInitialized();
+    }
+    
+
+    private void ToggleElevationData()
+    {
+        UserMapSettings.ShowElevationShader = !UserMapSettings.ShowElevationShader;
+    }
+
+}
+
+<div id="right-menu-body">
+    <div class="right-menu-item">
+         <div class="right-menu-icon @(UserMapSettings.ShowElevationShader ? "selected" : "")" @onclick="ToggleElevationData">
+             <i class="icon-l icon-mountain"></i>
+        </div>
+        <div class="right-menu-content">
+            <p>Elevation Data</p>
+        </div>
+    </div>
+</div>

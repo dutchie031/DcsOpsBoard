@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/SupportingProjects/">
+    <Project Path="SupportingProjects/2dTileExporter/2dTileExporter.csproj" />
+  </Folder>
+  <Project Path="DcsOpsBoard.Database/DcsOpsBoard.Database.csproj" />
+  <Project Path="DcsOpsBoard.Types/DcsOpsBoard.Types.csproj" />
+  <Project Path="DcsOpsBoard/DcsOpsBoard.csproj" />
+</Solution>
