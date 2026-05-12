@@ -12,7 +12,9 @@ Dictionary<Map, MapConfig> mapConfigs = new()
             OutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Tiles", 
             ShaderDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Shaders",
             DetailedSourceDir = @"C:\DCS_Exports\DcsOpsBoard\Detailed_Export\Caucasus",
-            DetailedOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Detailed_Tiles"
+            DetailedOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Detailed_Tiles",
+            ObjectFileIntput =@"C:\DCS_Exports\DcsOpsBoard\Object_Export\Caucasus\objects.json",
+            ObjectsOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Object_Tiles"
         } 
     },
     { 
@@ -23,7 +25,9 @@ Dictionary<Map, MapConfig> mapConfigs = new()
             OutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Tiles", 
             ShaderDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Shaders",
             DetailedSourceDir = @"C:\DCS_Exports\DcsOpsBoard\Detailed_Export\Kola",
-            DetailedOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Detailed_Tiles"
+            DetailedOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Detailed_Tiles",
+            ObjectFileIntput =@"C:\DCS_Exports\DcsOpsBoard\Object_Export\Kola\objects.json",
+            ObjectsOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Object_Tiles"
         } 
     },
 };
@@ -62,6 +66,7 @@ Console.WriteLine("Select Action:");
 Console.WriteLine("1: Tiles");
 Console.WriteLine("2: Shaders");
 Console.WriteLine("3: Detailed Tiles");
+Console.WriteLine("4: Map Objects");
 Console.WriteLine("Press Enter to export both.");
 string actionInput = Console.ReadLine() ?? string.Empty;
 _ = int.TryParse(actionInput, out action);
@@ -98,6 +103,11 @@ if(action == 0 || action == 3)
     await detailedExporter.ExportTiles();
 }
 
+if(action == 0 || action == 4)
+{
+    
+}
+
 class MapConfig 
 {
     public required string SourceDir { get; set; }
@@ -105,5 +115,8 @@ class MapConfig
     public required string ShaderDir { get; set; }
     public required string DetailedSourceDir { get; set; }
     public required string DetailedOutputDir { get; set; }
+
+    public required string ObjectFileIntput { get; set; }
+    public required string ObjectsOutputDir { get; set; }
 }
 

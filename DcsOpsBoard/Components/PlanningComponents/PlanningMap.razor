@@ -15,6 +15,8 @@
     private Layer? _baseLayer;
     private Layer? _shaderLayer;
     private Layer? _detailedLayer;
+    private Layer? _buildupLayer;
+    private Layer? _objectLayer;
 
     private DcsOpsBoard.Types.Map CurrentMap = DcsOpsBoard.Types.Map.Unknown;
     private string mapName => CurrentMap != DcsOpsBoard.Types.Map.Unknown ? CurrentMap.ToString().ToLower() : "unknown";
@@ -86,6 +88,7 @@
         _baseLayer.Extent = extent;
     }
 }
+
 
 <div class="map-container">
     @if (currentMission != Guid.Empty || true)

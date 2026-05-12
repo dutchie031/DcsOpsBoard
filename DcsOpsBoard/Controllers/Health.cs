@@ -10,7 +10,7 @@ namespace DcsOpsBoard.Controllers
         [HttpGet("health")]
         public IActionResult GetHealth()
         {
-            return Ok(new { status = "Healthy" });
+            return Ok(new { success = true, message= "healthy" });
         }
     }
 }

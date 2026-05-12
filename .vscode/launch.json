@@ -2,12 +2,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Blazor Server: Hot Reload + Debug",
-            "type": "dotnet",
-            "request": "launch",
-            "projectPath": "${workspaceFolder}/DcsOpsBoard/DcsOpsBoard.csproj"
-        },
-        {
             "name": "C#: 2dTileExporter Release",
             "type": "coreclr",
             "request": "launch",

@@ -11,6 +11,10 @@ var services = builder.Services;
 
 services.AddScoped<IUserMapSettings, UserMapSettings>();
 
+services.AddHttpClient();
+services.AddHttpContextAccessor();
+services.AddScoped<IUserAuthenticationState, UserAuthenticationState>();
+
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));
 
 // Add services to the container.
@@ -43,8 +47,8 @@ services.AddAuthentication(options =>
 })
 .AddDiscord(DiscordAuthenticationDefaults.AuthenticationScheme, options =>
 {
-    options.ClientId = Environment.GetEnvironmentVariable("DCS_OPS_BOARD_DISCORD_CLIENT_ID") ?? throw new InvalidOperationException("Discord client ID not set in environment variables");
-    options.ClientSecret = Environment.GetEnvironmentVariable("DCS_OPS_BOARD_DISCORD_CLIENT_SECRET") ?? throw new InvalidOperationException("Discord client secret not set in environment variables");
+    options.ClientId = builder.Configuration["DiscordAuthentication:ClientId"] ?? throw new InvalidOperationException("Discord client ID not set in environment variables");
+    options.ClientSecret = builder.Configuration["DiscordAuthentication:ClientSecret"] ?? throw new InvalidOperationException("Discord client secret not set in environment variables");
     options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 
     options.Scope.Add("identify");
@@ -58,7 +62,7 @@ services.AddAuthentication(options =>
 
 #endregion
 
-var app = builder.Build();
+    var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

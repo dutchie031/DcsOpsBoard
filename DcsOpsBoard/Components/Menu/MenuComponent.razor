@@ -1,15 +1,57 @@
-﻿
-@code {
+﻿@using DcsOpsBoard.Services
 
+@inject IUserAuthenticationState authState
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        authState.OnAuthenticationStateChanged += StateHasChanged;
+        await authState.EnsureLoaded();
+    }
 }
 
 <div id="top-menu-body">
     <div id="top-menu-header">
         <h1 style="text-align: center;">DCS Ops Board</h1>
+
+        <div class="user-info">
+            <div class="user-header-info">
+
+                @if (authState.IsAuthenticated)
+                {
+                    <img id="user-avatar" src="@authState.AvatarUrl" alt="?"/>
+                    <span id="user-name">@authState.Username</span>
+                } 
+                else 
+                {
+                    <a class="login-link" href="/api/account/login">Log In Now</a>
+                }
+            </div>
+            <div class="user-info-content">
+                @if (authState.IsAuthenticated)
+                {
+                    <a class="login-link" href="/api/account/logout">Log Out</a>
+                }
+
+            </div>
+        </div>
     </div>
     
     <div id="top-menu-content">
-        <h2>Some content</h2>
+        
+        <div class="container w-100">
+           <div class="row">
+                <div class="col-3">
+                    <h2>Missions</h2>
+                </div>
+                <div class="col-3">
+                    <div class="btn btn-primary">Create New Mission</div>
+                </div>
+
+
+           </div>
+        </div>
+        
     </div>
 </div>
 

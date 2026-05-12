@@ -77,7 +77,4 @@ public class TileController : ControllerBase
         }
         return PhysicalFile(filePath, "image/webp");
     }
-
-
-
 }
