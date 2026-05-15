@@ -12,6 +12,9 @@
     <Folder Include="Components\Modals\" />
     <Folder Include="Configuration\" />
     <Folder Include="Controllers\" />
+    <Folder Include="Hubs/" />
+    <Folder Include="Hubs/MissionEditing/" />
+    <Folder Include="Hubs/MissionEditing/UpdateCommands/" />
     <Folder Include="Services\" />
     <Folder Include="wwwroot\icons\" />
 

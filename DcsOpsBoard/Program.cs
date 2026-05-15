@@ -1,6 +1,7 @@
 using AspNet.Security.OAuth.Discord;
 using DcsOpsBoard.Components;
 using DcsOpsBoard.Configuration;
+using DcsOpsBoard.Database;
 using DcsOpsBoard.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -17,11 +18,18 @@ services.AddScoped<IUserAuthenticationState, UserAuthenticationState>();
 
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));
 
+builder.Services.AddSingleton<MissionCommandQueue>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MissionCommandQueue>());
+
 // Add services to the container.
 builder.Services.AddRazorComponents() 
     .AddInteractiveServerComponents();
 
 builder.Services.AddControllers();
+
+builder.Services.RegisterDatabase(builder.Configuration);
+
+
 
 #region Authentication
 
@@ -81,3 +89,7 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+internal class MissionCommandProcessor
+{
+}
