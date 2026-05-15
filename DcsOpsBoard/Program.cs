@@ -2,6 +2,7 @@ using AspNet.Security.OAuth.Discord;
 using DcsOpsBoard.Components;
 using DcsOpsBoard.Configuration;
 using DcsOpsBoard.Database;
+using DcsOpsBoard.Hubs.MissionSync;
 using DcsOpsBoard.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -17,6 +18,9 @@ services.AddHttpContextAccessor();
 services.AddScoped<IUserAuthenticationState, UserAuthenticationState>();
 
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));
+
+builder.Services.AddSingleton<IMissionCache, MissionCache>();
+builder.Services.AddHostedService(sp => (sp.GetRequiredService<IMissionCache>() as MissionCache)!);
 
 builder.Services.AddSingleton<MissionCommandQueue>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MissionCommandQueue>());
@@ -71,6 +75,8 @@ services.AddAuthentication(options =>
 #endregion
 
     var app = builder.Build();
+
+await app.Services.InitializeDatabaseAsync();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

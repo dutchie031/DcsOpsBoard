@@ -47,6 +47,13 @@ public interface IMissionStorageManager
     Task<DcsMission?> GetMission(Guid missionId);
 
     /// <summary>
+    /// Gets missions with optional filtering. This will read the mission files from disk and parse them into MizObjects.
+    /// </summary>
+    /// <param name="filter"></param>
+    /// <returns></returns>
+    Task<List<OpsPlanningMission>> GetMissions(Func<OpsPlanningMission, bool>? filter = null);
+
+    /// <summary>
     /// Updates a mission. This will update the mission file on disk and update the metadata in the database. <br>
     /// Caching of changes is recommended and bulk updates are advised.
     /// </summary>
@@ -106,6 +113,20 @@ public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbConte
         }
         return mizObject.Result;
     }
+
+    public async Task<List<OpsPlanningMission>> GetMissions(Func<OpsPlanningMission, bool>? filter = null)
+    {
+        using OpsBoardDbContext dbContext = _dbContextFactory.CreateDbContext();
+        if(filter == null)
+        {
+            return [..dbContext.OpsPlanningMissions];
+        }
+        else
+        {
+            return [.. dbContext.OpsPlanningMissions.Where(m => filter(m))];
+        }
+    }
+
 
     public async Task UpdateMission(Guid missionId, DcsMission updatedMizObject)
     {

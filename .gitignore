@@ -7,6 +7,10 @@ secret-inputs.json
 
 .env
 .tiles
+.db
+.missions
+
+**/*.lscache
 
 # User-specific files
 *.rsuser

@@ -1,18 +1,59 @@
-﻿@using DcsOpsBoard.Services
+﻿@using DcsOpsBoard.Components.Modals
+@using DcsOpsBoard.Database.Entities
+@using DcsOpsBoard.Database.Services
+@using DcsOpsBoard.Services
+
+@rendermode InteractiveServer
 
 @inject IUserAuthenticationState authState
+@inject IMissionStorageManager MissionStorageManager
 
 @code {
+
+    private NewMissionComponent? _newMissionModal;
+
+    private bool keepOpen = false;
+
+
+    public void OnNewMissionModalHidden()
+    {
+        keepOpen = false;
+        StateHasChanged();
+    }
+
+    public void OnNewMissionCreated()
+    {
+        // Refresh mission list or take other actions as needed.
+    }
+
+    public List<OpsPlanningMission> _myMissions = [];
+
     protected override async Task OnInitializedAsync()
     {
+        _myMissions = await MissionStorageManager.GetMissions(
+            m => m.OwnerId == authState.DiscordId
+        );
+
         authState.OnAuthenticationStateChanged += StateHasChanged;
         await authState.EnsureLoaded();
     }
+
+    private void ShowNewMissionModal()
+    {
+        keepOpen = true;
+        StateHasChanged();
+        _newMissionModal?.ShowNew();
+    }
+    
+    
+    
 }
 
-<div id="top-menu-body">
-    <div id="top-menu-header">
-        <h1 style="text-align: center;">DCS Ops Board</h1>
+<NewMissionComponent @ref="_newMissionModal" ModalClosed="OnNewMissionModalHidden" />
+
+<div class="top-menu-body @((keepOpen ? "locked-open" : ""))">
+    <div class="top-menu-header">
+        <h1>DCS Ops Board</h1>
 
         <div class="user-info">
             <div class="user-header-info">
@@ -36,20 +77,34 @@
             </div>
         </div>
     </div>
-    
-    <div id="top-menu-content">
-        
+     
+    <div class="top-menu-content">
         <div class="container w-100">
-           <div class="row">
-                <div class="col-3">
-                    <h2>Missions</h2>
+        @{
+            if(!authState.IsAuthenticated)
+            {
+                <div class="alert alert-warning" role="alert">
+                    You are not logged in. Please log in to access all features of the DCS Ops Board.
                 </div>
-                <div class="col-3">
-                    <div class="btn btn-primary">Create New Mission</div>
+            } 
+            else 
+            {
+                <div class="row">
+                    <div class="col-3">
+                        <h2>Missions</h2>
+                    </div>
+                    <div class="col-3">
+                        <div class="btn btn-primary" @onclick="ShowNewMissionModal">Create New Mission</div>
+                    </div>
                 </div>
+                <div class="row">
+                    <div class="col-7">
+                    </div>
+                </div>  
 
-
-           </div>
+            }
+        }
+           
         </div>
         
     </div>

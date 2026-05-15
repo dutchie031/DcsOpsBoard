@@ -1,9 +1,84 @@
-﻿<h3>NewMissionComponent</h3>
+﻿@using DcsOpsBoard.Services
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject IUserAuthenticationState AuthState;
 
 @code {
 
+    [Parameter]
+    public EventCallback ModalClosed { get; set; }
+    
+    private NewMissionModel model = new NewMissionModel();
+    private bool isDragOver;
+
     public void ShowNew()
     {
+        model = new NewMissionModel();
+        isDragOver = false;
+        isVisible = true;
+        StateHasChanged();
+    }
+
+    private bool isVisible = false;
+    private void Hide()
+    {
+        isVisible = false;
+        StateHasChanged();
+        ModalClosed.InvokeAsync(null);
+    }
+
+    private void CreateMission()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            return;
+        }
+
+        ulong? userId = AuthState.DiscordId;
+        if (userId == null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(model.Name) || string.IsNullOrWhiteSpace(model.Description))
+        {
+            return;
+        }
+
+        if (model.MissionFile == null)
+        {
+            return;
+        }
+
+        // model.MissionFile is available here for upload/storage.
+
+    }
+
+    private void OnDragEnter()
+    {
+        isDragOver = true;
+    }
+
+    private void OnDragLeave()
+    {
+        isDragOver = false;
+    }
+
+    private void OnDrop(DragEventArgs _)
+    {
+        isDragOver = false;
+    }
+
+    private void OnMissionFileSelected(InputFileChangeEventArgs e)
+    {
+        if (e.File.Name.EndsWith(".miz", StringComparison.OrdinalIgnoreCase))
+        {
+            model.MissionFile = e.File;
+
+            //TODO: file scanning/validation can be added here if desired.
+        }
+
+        // TODO: Provide user feedback if the file is not a .miz file.
 
     }
 
@@ -11,10 +86,50 @@
     {
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
+        public IBrowserFile? MissionFile { get; set; }
     }
-
 }
 
-<div class="modal ">
-
+<div class="modal fade @(isVisible ? "show" : "hidden")" tabindex="-1" role="dialog" @onclick="Hide">
+    <div class="modal-dialog" role="document" @onclick:stopPropagation>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">New Mission</h5>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="missionName">Mission Name</label>
+                    <input type="text" class="form-control text" id="missionName" @bind="model.Name" />
+                </div>
+                <div class="form-group">
+                    <label for="missionDescription">Mission Description</label>
+                    <textarea class="form-control text" id="missionDescription" rows="3"
+                              @bind="model.Description"></textarea>
+                </div>
+                <div class="form-group mt-3">
+                    <label>Mission File</label>
+                    <div class="drop-zone @(isDragOver ? "drag-over" : "")" @ondragenter="OnDragEnter"
+                         @ondragleave="OnDragLeave" @ondragover:preventDefault="true" @ondrop="OnDrop"
+                         @ondrop:preventDefault="true">
+                        <InputFile OnChange="OnMissionFileSelected" class="file-input-overlay" />
+                        <div class="drop-zone-content">
+                            @if (model.MissionFile == null)
+                            {
+                                <p class="mb-1">Drag and drop one file here</p>
+                                <p class="mb-0 text-muted">or click to browse</p>
+                            }
+                            else
+                            {
+                                <p class="mb-0">Selected: @model.MissionFile.Name</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" @onclick="CreateMission">Create your mission</button>
+                <button type="button" class="btn btn-secondary" @onclick="Hide">Close</button>
+            </div>
+        </div>
+    </div>
 </div>

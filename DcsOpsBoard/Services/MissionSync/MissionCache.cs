@@ -14,7 +14,7 @@ public interface IMissionCache
     Task EvictOldMissions(TimeSpan maxAge);
 }
 
-public class MissionCache(IMissionStorageManager _missionStorageManager) : IMissionCache
+public class MissionCache(IMissionStorageManager _missionStorageManager) : BackgroundService, IMissionCache
 {
     private readonly Dictionary<Guid, DcsMission> _missionCache = [];
     private readonly Dictionary<Guid, DateTime> _lastAccessed = [];
@@ -69,4 +69,33 @@ public class MissionCache(IMissionStorageManager _missionStorageManager) : IMiss
         updateAction(mission);
         _dirtyFlags[missionId] = true;
     }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await PersistMissions();
+        await base.StopAsync(cancellationToken);
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await PersistMissions();
+                await EvictOldMissions(TimeSpan.FromMinutes(10));
+                await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
+            }
+            catch (TaskCanceledException)
+            {
+                // Expected on shutdown, ignore
+            }
+            catch (Exception ex)
+            {
+                // Log error but continue loop
+                Console.Error.WriteLine($"Error in persist loop: {ex}");
+            }
+        }
+    }
+
 }

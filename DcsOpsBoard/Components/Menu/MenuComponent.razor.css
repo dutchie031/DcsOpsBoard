@@ -1,5 +1,5 @@
 
-#top-menu-body {
+.top-menu-body {
     background-color: #222430e7;
     height: 5vh;
     width: 80vw;
@@ -11,25 +11,34 @@
     z-index: 1000;
 }
 
-#top-menu-body:hover {
+.top-menu-body.locked-open {
     height: 95vh;
 }
 
-#top-menu-header {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+.top-menu-body:hover {
+    height: 95vh;
+}
+
+.top-menu-header {
     align-items: center;
     height: 5vh;
     width: 100%;
-}
-
-#top-menu-header h1 {
-    grid-column: 2;
     margin: 0;
-    text-align: center;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    align-content: center;
 }
 
-#top-menu-content {
+.top-menu-header h1 {
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    line-height: 1;
+}
+
+.top-menu-content {
+    padding-top: 2em;
     height: 90vh;
     width: 100%;
     padding-left: 2em;
@@ -42,6 +51,8 @@
     align-items: center;
     justify-self: end;
     padding-right: 10px;  
+    height: 100%;
+    min-height: 0;
 
     width: 20vw;
 
@@ -49,6 +60,7 @@
 
 .user-header-info {
     height: 5vh;
+    min-height: 5vh;
     grid-column: 3;
     display: flex;
     justify-self: end;
@@ -56,6 +68,8 @@
     align-items: center;
     justify-content: flex-end;
     padding-right: 10px;
+    margin: 0;
+    min-height: 0;
 }
 
 

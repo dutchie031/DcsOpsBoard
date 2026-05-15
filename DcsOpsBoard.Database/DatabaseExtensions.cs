@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using DcsOpsBoard.Database.Services;
+using Microsoft.Extensions.Options;
+using System.Reflection;
 
 namespace DcsOpsBoard.Database;
 
@@ -25,10 +27,29 @@ public static class DatabaseExtensions
         if(string.IsNullOrEmpty(databaseSection.MissionFilesPath))
             throw new ArgumentException("Mission files path is not configured");
         
+
+        if(!Path.IsPathFullyQualified(databaseSection.Path))
+        {
+            databaseSection.Path = Path.GetFullPath(databaseSection.Path, Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);
+        }
+
+        if (!Path.IsPathFullyQualified(databaseSection.MissionFilesPath))
+        {
+            databaseSection.MissionFilesPath = Path.GetFullPath(databaseSection.MissionFilesPath, Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);
+        }
+
         services.AddDbContextFactory<Context.OpsBoardDbContext>(options =>
             options.UseSqlite($"Data Source={databaseSection.Path}"));
 
         services.AddSingleton<IMissionStorageManager, MissionStorageManager>();
         services.AddSingleton<IPermissionManager, PermissionManager>();
+    }
+
+    public static async Task InitializeDatabaseAsync(this IServiceProvider serviceProvider)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<Context.OpsBoardDbContext>>();
+        var dbContext = await dbContextFactory.CreateDbContextAsync();
+        await dbContext.Database.MigrateAsync();
     }
 }

@@ -21,3 +21,16 @@ dotnet user-secrets set "DiscordAuthentication:ClientId" "your-client-id"
 dotnet user-secrets set "DiscordAuthentication:ClientSecret" "your-client-secret"
 ```
 
+### Database Migrations
+
+The project uses Entity Framework Core for database access, and migrations are used to manage changes to the database schema. To add a new migration, you can use the following command:
+
+```bash
+dotnet ef migrations add <MigrationName> --project DcsOpsBoard.Database --startup-project DcsOpsBoard
+```
+
+To remove the last migration, you can use the following command:
+
+```bash
+dotnet ef migrations remove --project DcsOpsBoard.Database --startup-project DcsOpsBoard
+```
