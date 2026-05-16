@@ -1,0 +1,20 @@
+
+
+.mission-selection-row:hover {
+    cursor: pointer;
+    background-color: rgba(255, 255, 255, 0.062);
+}
+
+.mission-management-modal .modal-dialog {
+    width: 60vw;
+    max-width: 60vw;
+}
+
+.mission-management-modal .modal-content {
+    height: 80vh;
+    max-height: 80vh;
+}
+
+.mission-management-modal .title-entry {
+    max-width: 300px;
+}

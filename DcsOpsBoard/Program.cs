@@ -1,7 +1,11 @@
 using AspNet.Security.OAuth.Discord;
 using DcsOpsBoard.Components;
+using DcsOpsBoard.Components.Modals.AreYouSure;
+using DcsOpsBoard.Components.Modals.Warnings;
 using DcsOpsBoard.Configuration;
 using DcsOpsBoard.Database;
+using DcsOpsBoard.Hubs;
+using DcsOpsBoard.Hubs.MissionEditing;
 using DcsOpsBoard.Hubs.MissionSync;
 using DcsOpsBoard.Services;
 using Microsoft.AspNetCore.Authentication;
@@ -16,6 +20,10 @@ services.AddScoped<IUserMapSettings, UserMapSettings>();
 services.AddHttpClient();
 services.AddHttpContextAccessor();
 services.AddScoped<IUserAuthenticationState, UserAuthenticationState>();
+services.AddScoped<AreYouSureService>();
+services.AddScoped<WarningService>();
+services.AddScoped<IMissionSelectorService, MissionSelectorService>();
+
 
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));
 
@@ -25,11 +33,15 @@ builder.Services.AddHostedService(sp => (sp.GetRequiredService<IMissionCache>() 
 builder.Services.AddSingleton<MissionCommandQueue>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MissionCommandQueue>());
 
+builder.Services.AddScoped<HubConnectionProvider<CursorHub>>();
+builder.Services.AddScoped<HubConnectionProvider<MissionEditHub>>();
+
 // Add services to the container.
 builder.Services.AddRazorComponents() 
     .AddInteractiveServerComponents();
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 
 builder.Services.RegisterDatabase(builder.Configuration);
 
@@ -89,6 +101,8 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapControllers();
+app.MapHub<MissionEditHub>(MissionEditHub.HubUrl);
+app.MapHub<CursorHub>(CursorHub.HubUrl);
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()

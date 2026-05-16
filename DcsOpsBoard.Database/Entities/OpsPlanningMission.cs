@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using DcsMissionParser.Net;
+using DcsOpsBoard.Types;
 
 namespace DcsOpsBoard.Database.Entities;
 
@@ -15,7 +16,7 @@ public class OpsPlanningMission
     public required ulong OwnerId { get; set; }
 
     public required string UploadedMissionName { get; set; }
-
+    public required Map Map { get; set; }
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     public DateTime LastEditedAt { get; set; } = DateTime.UtcNow;
 

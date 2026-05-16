@@ -1,6 +1,18 @@
-﻿@using DcsOpsBoard.Database.Entities
+﻿@using DcsOpsBoard.Components.Modals.AreYouSure
+@using DcsOpsBoard.Database.Entities
+@using DcsOpsBoard.Database.Services
+@using DcsOpsBoard.Services
+@using Microsoft.EntityFrameworkCore.Metadata.Internal
+
+@inject AreYouSureService AreYouSureService;
+@inject IUserAuthenticationState AuthState;
+@inject IMissionStorageManager MissionStorageManager;
+@inject IMissionSelectorService MissionSelectorService;
 
 @code {
+
+    [Parameter]
+    public required EventCallback<bool> ModalVisibilityChanged { get; set; }
 
     [Parameter]
     public required OpsPlanningMission Mission { get; set; }
@@ -8,41 +20,94 @@
     [Parameter]
     public EventCallback MissionChanged { get; set; }
 
-    private bool _modalVisible = false;
+    [Parameter]
+    public EventCallback<OpsPlanningMission> MissionDeleted { get; set; }
 
-    private void Hide()
+    private bool _modalVisible;
+
+    private async Task SetModalVisible(bool value)
     {
-        _modalVisible = false;
+        if (value == _modalVisible)
+        {
+            return;
+        }
+
+        _modalVisible = value;
         StateHasChanged();
+        await ModalVisibilityChanged.InvokeAsync(value);
+    }
+
+    private async Task Hide()
+    {
+        await SetModalVisible(false);
     }
 
     public async Task SaveChanges()
     {
-        _modalVisible = false;
-        StateHasChanged();
+        await SetModalVisible(false);
         await MissionChanged.InvokeAsync(null);
+    }
+
+    public async Task DeleteMission()
+    {
+        string title = $"Are you sure you want to delete the mission '{Mission.Name}'?";
+        string body = "This action cannot be undone.";
+        bool confirmed = await AreYouSureService.ShowAndWait(title, body);
+        if (confirmed && AuthState.IsAuthenticated && AuthState.DiscordId == Mission.OwnerId)
+        {
+            await MissionStorageManager.DeleteMission(Mission.MissionId);
+
+            await SetModalVisible(false);
+            await MissionDeleted.InvokeAsync(Mission);
+        }
+    }
+
+    public async Task Show()
+    {
+        await SetModalVisible(true);
+    }
+
+    public async Task SelectMission()
+    {
+        await MissionSelectorService.SelectMission(Mission.MissionId);
     }
 
 }
 
-<div class="d-flex flex-column">
-    <span>@Mission.Name</span>
-    <span>@Mission.UploadedAt.ToString("yyyy-MM-dd HH:mm:ss")</span>
+<div class="row mission-selection-row" @onclick="SelectMission">
+    <div class="col-2">
+        <span>@Mission.Name</span>
+    </div>
+    <div class="col-6">
+        <span>@Mission.UploadedAt.ToString("yyyy-MM-dd HH:mm:ss")</span>
+    </div>
+    <div class="col-4">
+        <button class="btn btn-sm btn-primary" @onclick="Show" @onclick:stopPropagation>Manage</button>
+    </div>
 </div>
 
 
-<div class="modal fade @(_modalVisible ? "show" : "hidden")" tabindex="-1" role="dialog" @onclick="Hide">
+<div class="modal fade @(_modalVisible ? "show" : "hidden") mission-management-modal" tabindex="-1" role="dialog" @onclick="Hide">
     <div class="modal-dialog" role="document" @onclick:stopPropagation>
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Manage Mission: @Mission.Name</h5>
             </div>
             <div class="modal-body">
+                <div class="form-group">
+                    <label for="missionName">Mission Name</label>
+                    <input id="missionName" class="form-control text title-entry" @bind="Mission.Name" />
+                </div>
+                <div class="form-group">
+                    <label for="missionDescription">Mission Description</label>
+                    <textarea id="missionDescription" class="form-control" @bind="Mission.Description"></textarea>
+                </div>
                 
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-danger" @onclick="DeleteMission">Delete Mission</button>
+                <button type="button" class="btn btn-secondary" @onclick="Hide">Cancel</button>
                 <button type="button" class="btn btn-primary" @onclick="SaveChanges">Save Changes</button>
-                <button type="button" class="btn btn-secondary" @onclick="Hide">Close</button>
             </div>
         </div>
     </div>

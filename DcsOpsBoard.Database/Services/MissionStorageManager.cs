@@ -4,6 +4,7 @@ using DcsMissionParser.Net;
 using DcsOpsBoard.Database.Configuration;
 using DcsOpsBoard.Database.Context;
 using DcsOpsBoard.Database.Entities;
+using DcsOpsBoard.Types;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -35,8 +36,9 @@ public interface IMissionStorageManager
     /// <param name="name">Name of the mission</param>
     /// <param name="description">Description of the mission</param>
     /// <param name="ownerId">ID of the user who owns the mission</param>
+    /// <param name="map">Map of the mission</param>
     /// <returns></returns>
-    Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId);
+    Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId, Map map);
 
     /// <summary>
     /// Gets a mission by its ID. This will read the mission file from disk and parse it into a MizObject.
@@ -62,12 +64,19 @@ public interface IMissionStorageManager
     /// <returns></returns>
     Task UpdateMission(Guid missionId, DcsMission updatedMizObject);
 
+    /// <summary>
+    /// Deletes a mission. This will delete the mission file from disk and remove the metadata from the database. <br>
+    /// </summary>
+    /// <param name="missionId"></param>
+    /// <returns></returns>
+    Task DeleteMission(Guid missionId);
+
 }
 
 public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbContextFactory, IOptions<DatabaseConfiguration> dbOptions) : IMissionStorageManager
 {
     private readonly DatabaseConfiguration _config = dbOptions.Value;
-    public async Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId)
+    public async Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId, Map map)
     {
         using OpsBoardDbContext dbContext = _dbContextFactory.CreateDbContext();
         OpsPlanningMission newMission = new()
@@ -75,7 +84,8 @@ public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbConte
             Name = name,
             Description = description,
             UploadedMissionName = uploadedMissionName,
-            OwnerId = ownerId
+            OwnerId = ownerId,
+            Map = map
         };
 
         dbContext.OpsPlanningMissions.Add(newMission);
@@ -158,5 +168,22 @@ public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbConte
     private string GetMissionFilePath(Guid missionId)
     {
         return Path.Combine(_config.MissionFilesPath, missionId.ToString("N"));
+    }
+
+    public async Task DeleteMission(Guid missionId)
+    {
+        string missionFilePath = GetMissionFilePath(missionId);
+        if(Directory.Exists(missionFilePath))
+        {
+            Directory.Delete(missionFilePath, true);
+        }
+
+        using OpsBoardDbContext dbContext = _dbContextFactory.CreateDbContext();
+        OpsPlanningMission? mission = await dbContext.OpsPlanningMissions.FirstOrDefaultAsync(m => m.MissionId == missionId);
+        if(mission != null)
+        {
+            dbContext.OpsPlanningMissions.Remove(mission);
+            await dbContext.SaveChangesAsync();
+        }
     }
 }

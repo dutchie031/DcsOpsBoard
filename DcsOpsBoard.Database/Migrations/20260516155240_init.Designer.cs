@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DcsOpsBoard.Database.Migrations
 {
     [DbContext(typeof(OpsBoardDbContext))]
-    [Migration("20260515141044_init")]
+    [Migration("20260516155240_init")]
     partial class init
     {
         /// <inheritdoc />
@@ -32,6 +32,9 @@ namespace DcsOpsBoard.Database.Migrations
 
                     b.Property<DateTime>("LastEditedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Map")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()

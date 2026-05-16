@@ -15,9 +15,9 @@
     private bool keepOpen = false;
 
 
-    public void OnNewMissionModalHidden()
+    public void OnModalVisibilityChanged(bool visible)
     {
-        keepOpen = false;
+        keepOpen = visible; //When model is visible keep menu open, when not visible, allow it to close
         StateHasChanged();
     }
 
@@ -31,15 +31,42 @@
         StateHasChanged();
     }
 
-    
-    protected override async Task OnInitializedAsync()
+    private async void AuthenticationStateChanged()
     {
+        if(!authState.IsAuthenticated)
+        {
+            _myMissions = [];
+            StateHasChanged();
+            return;
+        }
+
         _myMissions = await MissionStorageManager.GetMissions(
             m => m.OwnerId == authState.DiscordId
         );
+        StateHasChanged();
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        authState.OnAuthenticationStateChanged += AuthenticationStateChanged;
+    }
 
-        authState.OnAuthenticationStateChanged += StateHasChanged;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
         await authState.EnsureLoaded();
+        if (firstRender && authState.IsAuthenticated)
+        {
+            _myMissions = await MissionStorageManager.GetMissions(
+                m => m.OwnerId == authState.DiscordId
+            );
+            StateHasChanged();
+        }
+    }
+    
+    private void OnMissionDeleted(OpsPlanningMission mission)
+    {
+        _myMissions.RemoveAll(m => m.MissionId == mission.MissionId);
+        StateHasChanged();
     }
 
     private void ShowNewMissionModal()
@@ -50,7 +77,7 @@
     }
 }
 
-<NewMissionComponent @ref="_newMissionModal" ModalClosed="OnNewMissionModalHidden" MissionCreated="OnNewMissionCreated" />
+<NewMissionComponent @ref="_newMissionModal" ModalVisibilityChanged="OnModalVisibilityChanged" MissionCreated="OnNewMissionCreated" />
 
 <div class="top-menu-body @((keepOpen ? "locked-open" : ""))">
     <div class="top-menu-header">
@@ -105,10 +132,12 @@
                         } 
                         else 
                         {
-                            foreach (var mission in _myMissions)
-                            {
-                                <MissionManagementItem @key="mission.MissionId" Mission="mission" />
-                            }
+                            <div class="container">
+                                @foreach (var mission in _myMissions)
+                                {
+                                    <MissionManagementItem @key="mission.MissionId" Mission="mission" ModalVisibilityChanged="OnModalVisibilityChanged" MissionDeleted="OnMissionDeleted" />
+                                }
+                            </div>
                         }
                     </div>
                 </div>

@@ -126,7 +126,22 @@ body {
     color: #ffffff;
 }
 
-.modal-content .text {
+.modal-content input {
+    background-color: #262938;
+    color: #ffffff;
+}
+
+.modal-content input:focus {
+    background-color: #262938;
+    color: #ffffff;
+}
+
+.modal-content textarea {
+    background-color: #262938;
+    color: #ffffff;
+}
+
+.modal-content textarea:focus {
     background-color: #262938;
     color: #ffffff;
 }

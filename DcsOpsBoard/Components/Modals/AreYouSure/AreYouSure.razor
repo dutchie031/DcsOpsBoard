@@ -1,0 +1,55 @@
+﻿
+@inject AreYouSureService AreYouSureService;
+
+@code {
+
+    private bool _modalVisible = false;
+    private TaskCompletionSource<bool>? _confirmationTcs;
+
+
+    protected override void OnInitialized()
+    {
+        AreYouSureService.ShowConfirmation = ShowAndWait;
+    }
+
+    private async Task<bool> ShowAndWait()
+    {
+        _confirmationTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _modalVisible = true;
+        await InvokeAsync(StateHasChanged);
+
+        return await _confirmationTcs.Task;
+    }
+
+    private async Task Confirm()
+    {
+        _modalVisible = false;
+        _confirmationTcs?.TrySetResult(true);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Hide()
+    {
+        _modalVisible = false;
+        _confirmationTcs?.TrySetResult(false);
+        await InvokeAsync(StateHasChanged);
+    }
+
+}
+
+<div class="modal fade @(_modalVisible ? "show" : "hidden")" tabindex="-1" role="dialog" @onclick="Hide">
+    <div class="modal-dialog" role="document" @onclick:stopPropagation>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@AreYouSureService.Title</h5>
+            </div>
+            <div class="modal-body">
+                @AreYouSureService.Body
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Hide">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="Confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>

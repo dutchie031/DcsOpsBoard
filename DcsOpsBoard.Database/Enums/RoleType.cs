@@ -7,6 +7,7 @@ public enum RoleType
     Unknown = 0,
     Admin = 1,
     Editor = 2,
-    FlightLead = 3,
-    Viewer = 4,
+    BlueFlightLead = 3,
+    RedFlightLead = 4,
+    Viewer = 5,
 }

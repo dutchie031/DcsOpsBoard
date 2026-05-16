@@ -20,6 +20,7 @@ namespace DcsOpsBoard.Database.Migrations
                     Description = table.Column<string>(type: "TEXT", nullable: false),
                     OwnerId = table.Column<ulong>(type: "INTEGER", nullable: false),
                     UploadedMissionName = table.Column<string>(type: "TEXT", nullable: false),
+                    Map = table.Column<int>(type: "INTEGER", nullable: false),
                     UploadedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     LastEditedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },

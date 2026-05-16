@@ -30,6 +30,9 @@ namespace DcsOpsBoard.Database.Migrations
                     b.Property<DateTime>("LastEditedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Map")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");

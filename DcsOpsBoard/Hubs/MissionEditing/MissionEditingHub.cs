@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace DcsOpsBoard.Hubs.MissionEditing;
 
-public class MissionEditHub : Hub
+public class MissionEditHub : Hub, IBaseHub
 {
     private readonly IMissionCache _cache;
     private readonly MissionCommandQueue _commandQueue;
@@ -17,6 +17,9 @@ public class MissionEditHub : Hub
     }
 
     private static readonly ConcurrentDictionary<string, Guid> _connectionMissions = [];
+
+    public static string HubUrl => "/hubs/missionedit";
+
 
     /// <summary>
     /// Clients join a group for the mission they want to edit. 

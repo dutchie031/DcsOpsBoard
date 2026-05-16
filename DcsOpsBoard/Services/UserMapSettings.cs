@@ -5,7 +5,8 @@ namespace DcsOpsBoard.Services;
 public interface IUserMapSettings
 {
     bool ShowElevationShader { get; set; }
-
+    bool ShowFriendlyCursors { get; set; }
+    bool ShowMyCursor { get; set; }
     event Action OnSettingsChanged;
 }
 
@@ -21,7 +22,33 @@ public class UserMapSettings : IUserMapSettings
 
     public bool ShowElevationShader
     {
-        get => field;
+        get;
+        set
+        {
+            if(field != value)
+            {
+                field = value;
+                NotifySettingsChanged();
+            }
+        }
+    } = true;
+
+    public bool ShowFriendlyCursors
+    {
+        get;
+        set
+        {
+            if(field != value)
+            {
+                field = value;
+                NotifySettingsChanged();
+            }
+        }
+    } = true;
+
+    public bool ShowMyCursor
+    {
+        get;
         set
         {
             if(field != value)

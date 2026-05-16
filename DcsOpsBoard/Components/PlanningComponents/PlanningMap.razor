@@ -1,12 +1,21 @@
 ﻿@using DcsOpsBoard.Configuration
+@using DcsOpsBoard.Database.Services
+@using DcsOpsBoard.Hubs
+@using DcsOpsBoard.Hubs.HubModels
+@using DcsOpsBoard.Hubs.MissionEditing
 @using DcsOpsBoard.Services
 @using DcsOpsBoard.Types
-@using OpenLayers.Blazor
+@using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.JSInterop
+@using OpenLayers.Blazor
 
 @rendermode InteractiveServer
 
+@inject IMissionStorageManager MissionStorageManager
+@inject HubConnectionProvider<CursorHub> CursorHubProvider
+@inject IMissionSelectorService MissionSelectorService
 @inject IUserMapSettings UserMapSettings
+@inject IUserAuthenticationState AuthState
 @inject IJSRuntime JS
 
 @code {
@@ -17,6 +26,8 @@
     private Layer? _detailedLayer;
     private Layer? _buildupLayer;
     private Layer? _objectLayer;
+
+    private Layer? _cursorLayer;
 
     private DcsOpsBoard.Types.Map CurrentMap = DcsOpsBoard.Types.Map.Unknown;
     private string mapName => CurrentMap != DcsOpsBoard.Types.Map.Unknown ? CurrentMap.ToString().ToLower() : "unknown";
@@ -41,9 +52,16 @@
         return Task.CompletedTask;
     }
 
+    protected override async Task OnInitializedAsync()
+    {
+        MissionSelectorService.OnMissionSelected += SetCurrentMission;
+    }
+
     public async Task SetCurrentMission(Guid mission)
     {
         currentMission = mission;
+        await JoinCursorsHub();
+        StateHasChanged();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -57,8 +75,71 @@
             // Push initial map to JS state without recreating map/layers.
             await JS.InvokeVoidAsync("dcsMap.setActiveMap", mapName);
 
+            await JoinCursorsHub();
             StateHasChanged();
         }
+    }
+
+    private bool _registeredCursorHandler = false;
+    private async Task JoinCursorsHub()
+    {
+        if (currentMission == Guid.Empty)
+        {
+            return;
+        }
+
+        await AuthState.EnsureLoaded();
+        if (!AuthState.IsAuthenticated || AuthState.DiscordId is null)
+        {
+            return;
+        }
+
+        await CursorHubProvider.EnsureStartedAsync();
+
+        if(_registeredCursorHandler) return;
+
+        CursorHubProvider.Connection.On<CursorData>(CursorHub.ReceivedCursorPositionMethodName, async (data) => 
+        {
+            if(!UserMapSettings.ShowFriendlyCursors)
+            {
+                return;
+            }
+
+            _ = UpdateCursor(data);
+        });
+
+        _registeredCursorHandler = true;
+    }
+
+    private readonly Dictionary<string, Shape> _cursorShapes = [];
+    public async Task UpdateCursor(CursorData data)
+    {
+        if (currentMission == Guid.Empty || currentMission != data.MissionId )
+        {
+            return;
+        }
+
+        if (_cursorLayer is null)
+        return;
+
+        var cursorId = "cursor-" + data.UserId;
+
+        if (!_cursorShapes.TryGetValue(cursorId, out var shape))
+        {
+            shape = new Shape(ShapeType.Point)
+            {
+                Id = cursorId,
+                Coordinates = new Coordinates(new Coordinate(data.Lon, data.Lat)),
+            };
+
+            _cursorShapes[cursorId] = shape;
+            _cursorLayer.ShapesList.Add(shape);
+            await _cursorLayer.UpdateLayer();
+            return;
+        }
+
+        shape.Coordinates = new Coordinates(new Coordinate(data.Lon, data.Lat));
+        await shape.UpdateCoordinates();
     }
 
     public async Task SetMap(DcsOpsBoard.Types.Map map)
@@ -87,11 +168,12 @@
 
         _baseLayer.Extent = extent;
     }
+
 }
 
 
 <div class="map-container">
-    @if (currentMission != Guid.Empty || true)
+    @if (currentMission != Guid.Empty)
     {
         <Map @ref="_map"
              style="height: 100%; width: 100%; z-index: 0;"
@@ -125,6 +207,11 @@
                        Url="@($"/api/shaders/{mapName}/{{z}}/{{x}}/{{y}}.webp")"
                        Opacity="0.20"
                        Format="image/webp" />
+
+                <Layer @ref="_cursorLayer"
+                       Id="cursor-layer"
+                       LayerType="LayerType.Vector"
+                       Visibility="@(UserMapSettings.ShowFriendlyCursors)" />
             </Layers>
         </Map>
     }

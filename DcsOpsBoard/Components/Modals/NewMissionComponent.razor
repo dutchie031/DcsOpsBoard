@@ -1,5 +1,7 @@
-﻿@using DcsOpsBoard.Database.Services
+﻿@using DcsMissionParser.Net
+@using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Services
+@using DcsOpsBoard.Types
 @using Microsoft.AspNetCore.Components.Forms
 
 @inject IUserAuthenticationState AuthState;
@@ -8,7 +10,7 @@
 @code {
 
     [Parameter]
-    public EventCallback ModalClosed { get; set; }
+    public EventCallback<bool> ModalVisibilityChanged { get; set; }
 
     [Parameter]
     public EventCallback MissionCreated { get; set; }
@@ -21,6 +23,7 @@
         model = new NewMissionModel();
         isDragOver = false;
         isVisible = true;
+        ModalVisibilityChanged.InvokeAsync(true);
         StateHasChanged();
     }
 
@@ -29,7 +32,7 @@
     {
         isVisible = false;
         StateHasChanged();
-        ModalClosed.InvokeAsync(null);
+        ModalVisibilityChanged.InvokeAsync(false);
     }
 
     private async Task CreateMission()
@@ -57,7 +60,23 @@
         
         using MemoryStream ms = new MemoryStream();
         await model.MissionFile.OpenReadStream().CopyToAsync(ms);
-        _ = await MissionStorageManager.CreateNewMission(ms.ToArray(), model.MissionFile.Name, model.Name, model.Description, userId.Value);
+
+        byte[] bytes = ms.ToArray();
+
+        ParseResult<DcsMission> mission = await MizSerializer.Deserialize(bytes);
+        if(!mission.Success)
+        {
+            return;
+        }
+
+        Map map = mission.Result?.Theatre?.ToMap() ?? Map.Unknown;
+
+        if (map == Map.Unknown)
+        {
+            return;
+        }
+
+        _ = await MissionStorageManager.CreateNewMission(bytes, model.MissionFile.Name, model.Name, model.Description, userId.Value, map);
         
         await MissionCreated.InvokeAsync(null);
         Hide();

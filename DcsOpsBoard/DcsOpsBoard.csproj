@@ -9,18 +9,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Components\Modals\" />
+    <Folder Include="Components\Modals\AreYouSure\" />
+    <Folder Include="Components\Modals\Warnings\" />
     <Folder Include="Configuration\" />
     <Folder Include="Controllers\" />
     <Folder Include="Hubs/" />
     <Folder Include="Hubs/MissionEditing/" />
     <Folder Include="Hubs/MissionEditing/UpdateCommands/" />
+    <Folder Include="Hubs\HubModels\" />
     <Folder Include="Services\" />
     <Folder Include="wwwroot\icons\" />
 
     <PackageReference Include="OpenLayers.Blazor" Version="2.5.0" />
     <PackageReference Include="AspNet.Security.OAuth.Discord" Version="10.0.0" />
 
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.7" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

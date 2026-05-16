@@ -17,9 +17,24 @@
         UserMapSettings.ShowElevationShader = !UserMapSettings.ShowElevationShader;
     }
 
+    private void ToggleCursors()
+    {
+        UserMapSettings.ShowFriendlyCursors = !UserMapSettings.ShowFriendlyCursors;
+    }
 }
 
 <div id="right-menu-body">
+    <div>
+        <div class="right-menu-item">
+            <div class="right-menu-icon @(UserMapSettings.ShowFriendlyCursors ? "selected" : "")" @onclick="ToggleCursors">
+                <i class="bi bi-cursor"></i>
+            </div>
+            <div class="right-menu-content">
+                <p>Friendly Cursors</p>
+            </div>
+        </div>
+    </div>
+
     <div class="right-menu-item">
          <div class="right-menu-icon @(UserMapSettings.ShowElevationShader ? "selected" : "")" @onclick="ToggleElevationData">
              <i class="icon-l icon-mountain"></i>
