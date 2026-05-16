@@ -56,7 +56,6 @@
         if (confirmed && AuthState.IsAuthenticated && AuthState.DiscordId == Mission.OwnerId)
         {
             await MissionStorageManager.DeleteMission(Mission.MissionId);
-
             await SetModalVisible(false);
             await MissionDeleted.InvokeAsync(Mission);
         }
