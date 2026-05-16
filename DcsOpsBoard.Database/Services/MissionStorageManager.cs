@@ -36,7 +36,7 @@ public interface IMissionStorageManager
     /// <param name="description">Description of the mission</param>
     /// <param name="ownerId">ID of the user who owns the mission</param>
     /// <returns></returns>
-    Task CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId);
+    Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId);
 
     /// <summary>
     /// Gets a mission by its ID. This will read the mission file from disk and parse it into a MizObject.
@@ -67,7 +67,7 @@ public interface IMissionStorageManager
 public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbContextFactory, IOptions<DatabaseConfiguration> dbOptions) : IMissionStorageManager
 {
     private readonly DatabaseConfiguration _config = dbOptions.Value;
-    public async Task CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId)
+    public async Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId)
     {
         using OpsBoardDbContext dbContext = _dbContextFactory.CreateDbContext();
         OpsPlanningMission newMission = new()
@@ -91,6 +91,8 @@ public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbConte
 
         using ZipArchive archive = new (new MemoryStream(uploadedMizFile), ZipArchiveMode.Read);
         await archive.ExtractToDirectoryAsync(GetMissionFilePath(newMission.MissionId));
+
+        return newMission;
     }
 
     public async Task<DcsMission?> GetMission(Guid missionId)
@@ -123,7 +125,7 @@ public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbConte
         }
         else
         {
-            return [.. dbContext.OpsPlanningMissions.Where(m => filter(m))];
+            return [.. dbContext.OpsPlanningMissions.Where(filter)];
         }
     }
 

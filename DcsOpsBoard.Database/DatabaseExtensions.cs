@@ -20,7 +20,7 @@ public static class DatabaseExtensions
     {
 
         var databaseSection = configuration.GetSection("Database").Get<Configuration.DatabaseConfiguration>() ?? throw new ArgumentException("Database configuration section is missing");
-        
+
         if(string.IsNullOrEmpty(databaseSection.Path))
             throw new ArgumentException("Database path is not configured");
         
@@ -38,6 +38,12 @@ public static class DatabaseExtensions
             databaseSection.MissionFilesPath = Path.GetFullPath(databaseSection.MissionFilesPath, Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);
         }
 
+        services.Configure<Configuration.DatabaseConfiguration>(c =>
+        {
+            c.Path = databaseSection.Path;
+            c.MissionFilesPath = databaseSection.MissionFilesPath;
+        });
+
         services.AddDbContextFactory<Context.OpsBoardDbContext>(options =>
             options.UseSqlite($"Data Source={databaseSection.Path}"));
 
@@ -50,6 +56,20 @@ public static class DatabaseExtensions
         using var scope = serviceProvider.CreateScope();
         var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<Context.OpsBoardDbContext>>();
         var dbContext = await dbContextFactory.CreateDbContextAsync();
+
+        var dbConfig = scope.ServiceProvider.GetRequiredService<IOptions<Configuration.DatabaseConfiguration>>().Value;
+
+        if(!Directory.Exists(dbConfig.MissionFilesPath))
+        {
+            Directory.CreateDirectory(dbConfig.MissionFilesPath);
+        }
+
+        var dbDirectory = Path.GetDirectoryName(dbConfig.Path);
+        if(!Directory.Exists(dbDirectory))        
+        {
+            Directory.CreateDirectory(dbDirectory!);
+        }
+
         await dbContext.Database.MigrateAsync();
     }
 }

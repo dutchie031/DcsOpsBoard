@@ -1,12 +1,17 @@
-﻿@using DcsOpsBoard.Services
+﻿@using DcsOpsBoard.Database.Services
+@using DcsOpsBoard.Services
 @using Microsoft.AspNetCore.Components.Forms
 
 @inject IUserAuthenticationState AuthState;
+@inject IMissionStorageManager MissionStorageManager;
 
 @code {
 
     [Parameter]
     public EventCallback ModalClosed { get; set; }
+
+    [Parameter]
+    public EventCallback MissionCreated { get; set; }
     
     private NewMissionModel model = new NewMissionModel();
     private bool isDragOver;
@@ -27,7 +32,7 @@
         ModalClosed.InvokeAsync(null);
     }
 
-    private void CreateMission()
+    private async Task CreateMission()
     {
         if (!AuthState.IsAuthenticated)
         {
@@ -49,9 +54,13 @@
         {
             return;
         }
-
-        // model.MissionFile is available here for upload/storage.
-
+        
+        using MemoryStream ms = new MemoryStream();
+        await model.MissionFile.OpenReadStream().CopyToAsync(ms);
+        _ = await MissionStorageManager.CreateNewMission(ms.ToArray(), model.MissionFile.Name, model.Name, model.Description, userId.Value);
+        
+        await MissionCreated.InvokeAsync(null);
+        Hide();
     }
 
     private void OnDragEnter()

@@ -1,0 +1,50 @@
+﻿@using DcsOpsBoard.Database.Entities
+
+@code {
+
+    [Parameter]
+    public required OpsPlanningMission Mission { get; set; }
+
+    [Parameter]
+    public EventCallback MissionChanged { get; set; }
+
+    private bool _modalVisible = false;
+
+    private void Hide()
+    {
+        _modalVisible = false;
+        StateHasChanged();
+    }
+
+    public async Task SaveChanges()
+    {
+        _modalVisible = false;
+        StateHasChanged();
+        await MissionChanged.InvokeAsync(null);
+    }
+
+}
+
+<div class="d-flex flex-column">
+    <span>@Mission.Name</span>
+    <span>@Mission.UploadedAt.ToString("yyyy-MM-dd HH:mm:ss")</span>
+</div>
+
+
+<div class="modal fade @(_modalVisible ? "show" : "hidden")" tabindex="-1" role="dialog" @onclick="Hide">
+    <div class="modal-dialog" role="document" @onclick:stopPropagation>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manage Mission: @Mission.Name</h5>
+            </div>
+            <div class="modal-body">
+                
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" @onclick="SaveChanges">Save Changes</button>
+                <button type="button" class="btn btn-secondary" @onclick="Hide">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+

@@ -21,13 +21,17 @@
         StateHasChanged();
     }
 
-    public void OnNewMissionCreated()
-    {
-        // Refresh mission list or take other actions as needed.
-    }
-
     public List<OpsPlanningMission> _myMissions = [];
 
+    public async Task OnNewMissionCreated()
+    {
+        _myMissions = await MissionStorageManager.GetMissions(
+            m => m.OwnerId == authState.DiscordId
+        );
+        StateHasChanged();
+    }
+
+    
     protected override async Task OnInitializedAsync()
     {
         _myMissions = await MissionStorageManager.GetMissions(
@@ -44,12 +48,9 @@
         StateHasChanged();
         _newMissionModal?.ShowNew();
     }
-    
-    
-    
 }
 
-<NewMissionComponent @ref="_newMissionModal" ModalClosed="OnNewMissionModalHidden" />
+<NewMissionComponent @ref="_newMissionModal" ModalClosed="OnNewMissionModalHidden" MissionCreated="OnNewMissionCreated" />
 
 <div class="top-menu-body @((keepOpen ? "locked-open" : ""))">
     <div class="top-menu-header">
@@ -73,7 +74,6 @@
                 {
                     <a class="login-link" href="/api/account/logout">Log Out</a>
                 }
-
             </div>
         </div>
     </div>
@@ -91,7 +91,7 @@
             {
                 <div class="row">
                     <div class="col-3">
-                        <h2>Missions</h2>
+                        <h2>My Missions</h2>
                     </div>
                     <div class="col-3">
                         <div class="btn btn-primary" @onclick="ShowNewMissionModal">Create New Mission</div>
@@ -99,12 +99,21 @@
                 </div>
                 <div class="row">
                     <div class="col-7">
+                        @if (_myMissions.Count == 0)
+                        {
+                            <p>You have no missions. Create one to get started!</p>
+                        } 
+                        else 
+                        {
+                            foreach (var mission in _myMissions)
+                            {
+                                <MissionManagementItem @key="mission.MissionId" Mission="mission" />
+                            }
+                        }
                     </div>
-                </div>  
-
+                </div>
             }
         }
-           
         </div>
         
     </div>
