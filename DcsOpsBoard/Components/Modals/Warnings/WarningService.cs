@@ -7,7 +7,7 @@ public class WarningService
 {
     public Func<string, string, WarningSeverity, Task>? ShowWarning { get; set; }
 
-    public async Task ShowAndWait(string title, string message, WarningSeverity severity)
+    public async Task ShowWarningAsync(string title, string message, WarningSeverity severity)
     {
         if (ShowWarning is not null)
         {

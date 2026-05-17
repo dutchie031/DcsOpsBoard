@@ -93,15 +93,53 @@
                 <h5 class="modal-title">Manage Mission: @Mission.Name</h5>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label for="missionName">Mission Name</label>
-                    <input id="missionName" class="form-control text title-entry" @bind="Mission.Name" />
+                <div class="container w-100 h-100 m-0 p-0 background-secondary">
+                    <div class="row h-50 border-bottom">
+                        <div class="col-5">
+                            <div class="form-group">
+                                <label for="missionName">Mission Name</label>
+                                <input id="missionName" class="form-control text title-entry" @bind="Mission.Name" />
+                            </div>
+                        </div>
+
+                        <div class="col-7 h-100">
+                            <div class="form-group h-100 d-flex flex-column pb-1">
+                                <label for="missionDescription">Mission Description</label>
+                                <textarea id="missionDescription" class="form-control description-entry flex-grow-1" @bind="Mission.Description"></textarea>    
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row h-50 gap-0">
+                        <div class="col-4 gx-0">
+                            <div class="h-50 border-right border-white p-2">
+                                <div class="w-100 d-flex justify-content-between">
+                                    <span><u>Admins</u></span>
+                                    <button class="btn btn-sm btn-primary"><i class="bi bi-node-plus"></i></button>
+                                </div>
+                            </div>
+                            <div class="h-50 border-right border-white p-2">
+                                <div class="w-100 d-flex justify-content-between">
+                                    <span><u>Editors</u></span>
+                                    <button class="btn btn-sm btn-primary"><i class="bi bi-node-plus"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4 gx-0">
+                            <div class="w-100 d-flex justify-content-between">
+                                <span><u>Red Flight Leads</u></span>
+                                <button class="btn btn-sm btn-primary"><i class="bi bi-node-plus"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-4 gx-0">
+                            <div class="h-100 border-left border-white p-2">
+                                <div class="w-100 d-flex justify-content-between">
+                                    <span><u>Red Flight Leads</u></span>
+                                    <button class="btn btn-sm btn-primary"><i class="bi bi-node-plus"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="missionDescription">Mission Description</label>
-                    <textarea id="missionDescription" class="form-control" @bind="Mission.Description"></textarea>
-                </div>
-                
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-danger" @onclick="DeleteMission">Delete Mission</button>

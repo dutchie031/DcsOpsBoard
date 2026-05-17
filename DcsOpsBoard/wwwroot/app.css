@@ -38,6 +38,13 @@ body {
     outline: 1px solid #26b050;
 }
 
+.center {
+    justify-content: center;
+    align-items: center;
+    align-content: center;
+    
+}
+
 .invalid {
     outline: 1px solid #e50000;
 }
@@ -111,6 +118,7 @@ body {
     height: 100vh;
     width: 100vw;
     background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
 }
 
 .modal-dialog {

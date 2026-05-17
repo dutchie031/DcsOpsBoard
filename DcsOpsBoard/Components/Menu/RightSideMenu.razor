@@ -24,23 +24,26 @@
 }
 
 <div id="right-menu-body">
-    <div>
+    <div class=right-menu-grouping>
         <div class="right-menu-item">
             <div class="right-menu-icon @(UserMapSettings.ShowFriendlyCursors ? "selected" : "")" @onclick="ToggleCursors">
                 <i class="bi bi-cursor"></i>
             </div>
             <div class="right-menu-content">
-                <p>Friendly Cursors</p>
+                <span>Friendly Cursors</span>
             </div>
         </div>
     </div>
 
-    <div class="right-menu-item">
-         <div class="right-menu-icon @(UserMapSettings.ShowElevationShader ? "selected" : "")" @onclick="ToggleElevationData">
-             <i class="icon-l icon-mountain"></i>
-        </div>
-        <div class="right-menu-content">
-            <p>Elevation Data</p>
+    <div class="right-menu-grouping">
+        <div class="right-menu-item">
+            <div class="right-menu-icon @(UserMapSettings.ShowElevationShader ? "selected" : "")" @onclick="ToggleElevationData">
+                <i class="icon-l icon-mountain"></i>
+            </div>
+            <div class="right-menu-content">
+                <span>Elevation Data</span>
+            </div>
         </div>
     </div>
+    
 </div>

@@ -5,16 +5,44 @@
     background-color: rgba(255, 255, 255, 0.062);
 }
 
+.mission-management-modal {
+    --bs-modal-width: 75vw;
+    --bs-modal-max-width: 75vw;
+}
+
 .mission-management-modal .modal-dialog {
-    width: 60vw;
-    max-width: 60vw;
+    width: 100vw;
+    height: 100vh;
 }
 
 .mission-management-modal .modal-content {
+    width: 75vw;
+    max-width: 75vw;
     height: 80vh;
     max-height: 80vh;
 }
 
+.mission-management-modal .model-header {
+    height: 5vh;
+}
+
+.mission-management-modal .modal-footer {
+    padding: 0;
+    min-height: 5vh;
+}
+
+.mission-management-modal .modal-body {
+    height: 70vh;
+    overflow-y: hidden;
+}
+
 .mission-management-modal .title-entry {
     max-width: 300px;
+    height: 4vh;
+    max-height: 4vh;
 }
+
+.mission-management-modal .description-entry {
+    overflow-y: auto;
+}
+

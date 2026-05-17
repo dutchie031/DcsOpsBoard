@@ -1,6 +1,4 @@
-﻿<h3>Warning</h3>
-
-@inject WarningService WarningService
+﻿@inject WarningService WarningService
 
 @code {
 
@@ -35,7 +33,23 @@
     <div class="modal-dialog" role="document" @onclick:stopPropagation>
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">@_title</h5>
+                    
+                    <h5 class="modal-title">
+                        @switch (_severity)
+                        {
+                            case WarningSeverity.INFO:
+                                <span class="bi bi-info-circle-fill mr-2 text-info" title="Info" aria-hidden="true"></span>
+                                break;
+                            case WarningSeverity.WARNING:
+                                <span class="bi bi bi-exclamation-circle-fill text-warning mr-2" title="Warning" aria-hidden="true"></span>
+                                break;
+                            case WarningSeverity.ERROR:
+                                <span class="bi bi bi-exclamation-circle-fill text-danger mr-2" title="Error" aria-hidden="true"></span>
+                                break;
+                        }
+                        @(" " + _title)
+                    </h5>
+                
             </div>
             <div class="modal-body">
                 @_message
