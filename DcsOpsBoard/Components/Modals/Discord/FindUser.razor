@@ -1,0 +1,67 @@
+﻿@using DcsOpsBoard.Services.Discord
+
+@inject IFindUserService FindUserService
+
+@code {
+
+    private bool _modalVisible = false;
+
+    private string? _selectedGuildId;
+
+    private TaskCompletionSource<DiscordUser?>? _tcs;
+
+    protected override void OnInitialized()
+    {
+        FindUserService.OnFindUserRequested = ShowAndWait;
+    }
+
+    public async Task<DiscordUser?> ShowAndWait()
+    {   
+        _tcs = new TaskCompletionSource<DiscordUser?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ShowModal();
+        return await _tcs.Task;
+    }
+
+    public void ShowModal()
+    {
+        _modalVisible = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void HideModal()
+    {
+        _modalVisible = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public async Task UserSelected(DiscordUser? user = null)
+    {
+        _tcs?.TrySetResult(user);
+        HideModal();
+    }
+
+}
+
+
+<div class="modal fade @( _modalVisible ? "show" : "" )" tabindex="-1" role="dialog" @onclick="HideModal">
+    <div class="modal-dialog" role="document" @onclick:stopPropagation>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Find Discord User</h5>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    @* Select Guild to search in TODO: Include friends? *@
+                </div>
+
+                <div class="form-group">
+                    @* Input for username and discriminator. Visible when a guild is selected *@
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+</div>

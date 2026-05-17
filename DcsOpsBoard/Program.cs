@@ -1,6 +1,8 @@
+using System.Net;
 using AspNet.Security.OAuth.Discord;
 using DcsOpsBoard.Components;
 using DcsOpsBoard.Components.Modals.AreYouSure;
+using DcsOpsBoard.Components.Modals.Discord;
 using DcsOpsBoard.Components.Modals.Warnings;
 using DcsOpsBoard.Configuration;
 using DcsOpsBoard.Database;
@@ -8,6 +10,7 @@ using DcsOpsBoard.Hubs;
 using DcsOpsBoard.Hubs.MissionEditing;
 using DcsOpsBoard.Hubs.MissionSync;
 using DcsOpsBoard.Services;
+using DcsOpsBoard.Services.Discord;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
@@ -23,6 +26,22 @@ services.AddScoped<IUserAuthenticationState, UserAuthenticationState>();
 services.AddScoped<AreYouSureService>();
 services.AddScoped<WarningService>();
 services.AddScoped<IMissionSelectorService, MissionSelectorService>();
+
+//Discord scoped services
+services.AddHttpClient(DiscordClient.HttpClientName, DiscordClient.ConfigureClient)
+.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+    MaxConnectionsPerServer = 20,
+    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+});
+
+services.AddScoped<IDiscordClient, DiscordClient>();
+services.AddScoped<IFindUserService, FindUserService>();
+
+
+
 
 
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));

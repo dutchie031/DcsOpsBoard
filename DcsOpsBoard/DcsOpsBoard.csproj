@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <Folder Include="Components\Modals\AreYouSure\" />
+    <Folder Include="Components\Modals\Discord\" />
     <Folder Include="Components\Modals\Warnings\" />
     <Folder Include="Configuration\" />
     <Folder Include="Controllers\" />
@@ -18,6 +19,7 @@
     <Folder Include="Hubs/MissionEditing/UpdateCommands/" />
     <Folder Include="Hubs\HubModels\" />
     <Folder Include="Services\" />
+    <Folder Include="Services\Discord\" />
     <Folder Include="wwwroot\icons\" />
 
     <PackageReference Include="OpenLayers.Blazor" Version="2.5.0" />

@@ -20,6 +20,8 @@ public interface IUserAuthenticationState
 
     public string AvatarUrl { get; }
 
+    public Task<string?> GetAccessToken();
+
 }
 
 public class UserAuthenticationState : IUserAuthenticationState
@@ -88,15 +90,7 @@ public class UserAuthenticationState : IUserAuthenticationState
 
     public async Task FetchData()
     {
-        var authState = await _authenticationStateProvider.GetAuthenticationStateAsync();
-        IsAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
-        Username = authState.User.Identity?.Name;
-
-        string? accessToken = await _httpContextAccessor.HttpContext!.GetTokenAsync("access_token");
-        if (accessToken == null)
-        {
-            return;
-        }
+        string accessToken = await GetAccessToken() ?? throw new InvalidOperationException("Access token is not available");
 
         HttpClient client = _httpClientFactory.CreateClient(nameof(UserAuthenticationState));
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -118,6 +112,18 @@ public class UserAuthenticationState : IUserAuthenticationState
         }
 
         _isLoaded = true;
+    }
+
+    public async Task<string?> GetAccessToken()
+    {
+        var authState = await _authenticationStateProvider.GetAuthenticationStateAsync();
+        IsAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+        if (!IsAuthenticated || _httpContextAccessor.HttpContext == null)
+        {
+            return null;
+        }
+
+        return await _httpContextAccessor.HttpContext.GetTokenAsync("access_token");
     }
 
     private class DiscordOauthResponse
