@@ -1,5 +1,5 @@
 using System;
-using DcsOpsBoard.Services.Discord;
+using DcsOpsBoard.Services.Discord.DTOs;
 
 namespace DcsOpsBoard.Components.Modals.Discord;
 

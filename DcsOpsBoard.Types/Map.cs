@@ -29,9 +29,9 @@ public static class MapExtensions
     {
         return map switch
         {
-            Map.Caucasus => "Caucasus",
+            Map.Caucasus => "caucasus",
             Map.Kola => "kola",
-            _ => "Unknown"
+            _ => "unknown"
         };
     }
 
@@ -39,10 +39,17 @@ public static class MapExtensions
 
     extension(Map map)
     {
-        public int ZoomLevel => map switch
+        public int MaxZoom => map switch
         {
-            Map.Caucasus => 10,
-            Map.Kola => 10,
+            Map.Caucasus => 17,
+            Map.Kola => 17,
+            _ => 0
+        };
+
+        public int MinZoom => map switch
+        {
+            Map.Caucasus => 8,
+            Map.Kola => 8,
             _ => 0
         };
         

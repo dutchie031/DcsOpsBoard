@@ -5,6 +5,7 @@
 @using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Services
 @using DcsOpsBoard.Services.Discord
+@using DcsOpsBoard.Services.Discord.DTOs
 @using Microsoft.EntityFrameworkCore.Metadata.Internal
 
 @inject AreYouSureService AreYouSureService;
@@ -73,14 +74,14 @@
 
     public async Task SelectMission()
     {
-        await MissionSelectorService.SelectMission(Mission.MissionId);
+        await MissionSelectorService.SelectMission(Mission);
     }
 
     public async Task AddNewUserToRole(RoleType roleType)
     {
         DiscordUser? user = await FindUserService.FindUserAsync();
         if(user == null) { return; }
-
+        
         
 
     }

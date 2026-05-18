@@ -19,6 +19,7 @@ cd DcsOpsBoard
 # Then run the following command to set the secrets
 dotnet user-secrets set "DiscordAuthentication:ClientId" "your-client-id"
 dotnet user-secrets set "DiscordAuthentication:ClientSecret" "your-client-secret"
+dotnet user-secrets set "DiscordBotConfiguration:Token" "your-bot-token"
 ```
 
 ### Database Migrations

@@ -1,0 +1,38 @@
+
+.modal-content {
+    height: 50vh;
+}
+
+.guild-dropdown {
+    max-height: 40vh;
+    overflow-y: auto;
+    background-color: #343a40; /* Match the dark theme */
+}
+
+
+.dropdown-row:hover {
+    background-color: #495057; /* Slightly lighter on hover */
+}
+
+
+.guild-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    border-radius: 50%;
+}
+
+.avatar-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 8px;
+    border-radius: 50%;
+}
+
+.search-results {
+    flex-grow: 1;
+}
+
+.search-result-row:hover {
+    background-color: #343a40;
+}

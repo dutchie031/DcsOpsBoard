@@ -1,4 +1,6 @@
-﻿@using DcsOpsBoard.Configuration
+﻿@using DcsMissionParser.Net.CoordMapping
+@using DcsOpsBoard.Configuration
+@using DcsOpsBoard.Database.Entities
 @using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Hubs
 @using DcsOpsBoard.Hubs.HubModels
@@ -19,19 +21,13 @@
 @inject IJSRuntime JS
 
 @code {
-    private Guid currentMission = Guid.Empty;
+    private OpsPlanningMission? _currentMission;
     private OpenLayers.Blazor.Map? _map;
     private Layer? _baseLayer;
     private Layer? _shaderLayer;
     private Layer? _detailedLayer;
-    private Layer? _buildupLayer;
-    private Layer? _objectLayer;
 
     private Layer? _cursorLayer;
-
-    private DcsOpsBoard.Types.Map CurrentMap = DcsOpsBoard.Types.Map.Unknown;
-    private string mapName => CurrentMap != DcsOpsBoard.Types.Map.Unknown ? CurrentMap.ToString().ToLower() : "unknown";
-
     private object BaseTileSourceOptions = new
     {
         MaxZoom = 15
@@ -57,11 +53,17 @@
         MissionSelectorService.OnMissionSelected += SetCurrentMission;
     }
 
-    public async Task SetCurrentMission(Guid mission)
+    private bool _pendingLimitsUpdate = false;
+    public async Task SetCurrentMission(OpsPlanningMission mission)
     {
-        currentMission = mission;
+        _currentMission = mission;
+        _pendingLimitsUpdate = true;
+
+        await JS.InvokeVoidAsync("dcsMap.setActiveMap", _currentMission.Map.ToMapString());
+
         await JoinCursorsHub();
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
+
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -69,21 +71,13 @@
         if (firstRender)
         {
             UserMapSettings.OnSettingsChanged += StateHasChanged;
-            CurrentMap = DcsOpsBoard.Types.Map.Caucasus;
-            await SetLimits();
-
-            // Push initial map to JS state without recreating map/layers.
-            await JS.InvokeVoidAsync("dcsMap.setActiveMap", mapName);
-
-            await JoinCursorsHub();
-            StateHasChanged();
         }
     }
 
     private bool _registeredCursorHandler = false;
     private async Task JoinCursorsHub()
     {
-        if (currentMission == Guid.Empty)
+        if (_currentMission == null)
         {
             return;
         }
@@ -96,11 +90,11 @@
 
         await CursorHubProvider.EnsureStartedAsync();
 
-        if(_registeredCursorHandler) return;
+        if (_registeredCursorHandler) return;
 
-        CursorHubProvider.Connection.On<CursorData>(CursorHub.ReceivedCursorPositionMethodName, async (data) => 
+        CursorHubProvider.Connection.On<CursorData>(CursorHub.ReceivedCursorPositionMethodName, async (data) =>
         {
-            if(!UserMapSettings.ShowFriendlyCursors)
+            if (!UserMapSettings.ShowFriendlyCursors)
             {
                 return;
             }
@@ -114,13 +108,13 @@
     private readonly Dictionary<string, Shape> _cursorShapes = [];
     public async Task UpdateCursor(CursorData data)
     {
-        if (currentMission == Guid.Empty || currentMission != data.MissionId )
+        if (_currentMission == null || _currentMission.MissionId != data.MissionId)
         {
             return;
         }
 
         if (_cursorLayer is null)
-        return;
+            return;
 
         var cursorId = "cursor-" + data.UserId;
 
@@ -142,75 +136,54 @@
         await shape.UpdateCoordinates();
     }
 
-    public async Task SetMap(DcsOpsBoard.Types.Map map)
+    
+    public Extent? GetExtent()
     {
-        CurrentMap = map;
-        await SetLimits();
+        if(_currentMission == null)
+        {
+            return null;
+        }
 
-        // Update JS lookup state (no full map reload).
-        await JS.InvokeVoidAsync("dcsMap.setActiveMap", mapName);
-
-        StateHasChanged();
-    }
-
-    public async Task SetLimits()
-    {
-        if (_map == null || _baseLayer == null) return;
-
-        var limits = CurrentMap.Limits;
-        await _map.SetZoom(CurrentMap.ZoomLevel);
-
-        Extent extent = new Extent(
+        var limits = _currentMission.Map.Limits;
+        return new Extent(
             limits.BottomLeft.Lon,
             limits.BottomLeft.Lat,
             limits.TopRight.Lon,
             limits.TopRight.Lat);
-
-        _baseLayer.Extent = extent;
     }
 
 }
 
 
 <div class="map-container">
-    @if (currentMission != Guid.Empty)
+
+    @if (_currentMission != null)
     {
-        <Map @ref="_map"
-             style="height: 100%; width: 100%; z-index: 0;"
-             ZoomChanged="OnZoomChanged"
-             MaxZoom="17"
-             MinZoom="6"
+        <Map
+            @key="@($"map-{_currentMission.MissionId}")" 
+            @ref="_map"
+            style=@($"height: 100%; width: 100%; z-index: 0; {(_currentMission == null ? "display:none;" :
+                                  "")}") ZoomChanged="OnZoomChanged" MaxZoom="_currentMission!.Map.MaxZoom" MinZoom="_currentMission.Map.MinZoom"
              ConfigureJsMethod="dcsMap.configureDetailedLayerLookup">
             <Layers>
 
-                <Layer @ref="_baseLayer"
-                       Id="base-layer"
-                       SourceType="SourceType.XYZ"
-                       Url="@($"/api/tiles/{mapName}/{{z}}/{{x}}/{{y}}.webp")"
-                       SourceOptions="BaseTileSourceOptions"
-                       Format="image/webp" />
+                <Layer @key="@(_currentMission?.MissionId)"
+                        @ref="_baseLayer" Id="base-layer" 
+                        Visibility="true"
+                        SourceType="SourceType.XYZ" 
+                        SourceOptions="BaseTileSourceOptions"
+                       Url=@($"/api/tiles/{_currentMission?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") Format="image/webp" />
 
-                  @* Detailed layer is loaded dynamically via JS to avoid unnecessary tile loading *@
-                <Layer @ref="_detailedLayer"
-                       Id="detailed-layer"
-                       SourceType="SourceType.XYZ"
-                       SourceOptions="DetailedTileSourceOptions"
-                       MinZoom="15"
-                       Format="image/webp" />
+                @* Detailed layer is loaded dynamically via JS to avoid unnecessary tile loading *@
+                <Layer @ref="_detailedLayer" Id="detailed-layer" SourceType="SourceType.XYZ"
+                       SourceOptions="DetailedTileSourceOptions" MinZoom="15" Format="image/webp" />
 
-                <Layer @ref="_shaderLayer"
-                       Id="shader-layer"
-                       SourceOptions="ShaderTileSourceOptions"
+                <Layer @ref="_shaderLayer" Id="shader-layer" SourceOptions="ShaderTileSourceOptions"
                        Visibility="@(UserMapSettings.ShowElevationShader)"
-                       MinZoom="6"
-                       SourceType="SourceType.XYZ"
-                       Url="@($"/api/shaders/{mapName}/{{z}}/{{x}}/{{y}}.webp")"
-                       Opacity="0.20"
-                       Format="image/webp" />
+                       Url=@($"/api/shaders/{_currentMission?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") MinZoom="6"
+                       SourceType="SourceType.XYZ" Opacity="0.20" Format="image/webp" />
 
-                <Layer @ref="_cursorLayer"
-                       Id="cursor-layer"
-                       LayerType="LayerType.Vector"
+                <Layer @ref="_cursorLayer" Id="cursor-layer" LayerType="LayerType.Vector"
                        Visibility="@(UserMapSettings.ShowFriendlyCursors)" />
             </Layers>
         </Map>
@@ -221,4 +194,5 @@
             <h1 style="text-align: center;">No mission selected</h1>
         </div>
     }
+
 </div>

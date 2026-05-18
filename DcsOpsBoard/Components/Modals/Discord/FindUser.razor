@@ -1,15 +1,21 @@
 ﻿@using DcsOpsBoard.Components.Modals.Warnings
+@using DcsOpsBoard.Configuration
 @using DcsOpsBoard.Services.Discord
+@using DcsOpsBoard.Services.Discord.DTOs
+@using Microsoft.Extensions.Options
 
-@inject IDiscordClient DiscordService
+@inject IDiscordUserClient DiscordService
 @inject IFindUserService FindUserService
 @inject WarningService WarningService
+
+@inject IOptions<DiscordAuthentication> DiscordAuthConfig;
 
 @code {
 
     private bool _modalVisible = false;
+    private bool _isLoadingGuilds = false;
 
-    private string? _selectedGuildId;
+    private ulong? _selectedGuildId;
 
     private TaskCompletionSource<DiscordUser?>? _tcs;
 
@@ -19,16 +25,19 @@
     }
 
     public async Task<DiscordUser?> ShowAndWait()
-    {   
+    {
         _tcs = new TaskCompletionSource<DiscordUser?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        ShowModal();
+        _ = ShowModal();
         return await _tcs.Task;
     }
 
-    public void ShowModal()
+    public async Task ShowModal()
     {
         _modalVisible = true;
-        InvokeAsync(StateHasChanged);
+        await InvokeAsync(StateHasChanged);
+
+        await RefreshGuilds();
+        await InvokeAsync(StateHasChanged);
     }
 
     public void HideModal()
@@ -49,45 +58,160 @@
         HideModal();
     }
 
-    public async Task GuildSelected(ChangeEventArgs e)
+    public async Task GuildSelected(string guildId)
     {
-        _selectedGuildId = e.Value?.ToString();
+        if(ulong.TryParse(guildId, out ulong parsedGuildId))
+        {
+            _selectedGuildId = parsedGuildId;
+        }
+        else
+        {
+            _selectedGuildId = null;
+        }
         StateHasChanged();
     }
 
-    
     private List<PartialGuild> _guilds = [];
     public async Task RefreshGuilds()
     {
+        _selectedGuildId = null;
+        _isLoadingGuilds = true;
+        StateHasChanged();
+
         var result = await DiscordService.GetGuildsForUserAsync();
         if (result.Success && result.Data != null)
         {
             _guilds = result.Data!;
         }
         else
-        {            
-            _ = WarningService.ShowWarningAsync("Could not fetch guilds", $"Error fetching guilds: {result.ErrorMessage}", severity: WarningSeverity.ERROR);
+        {
+            _ = WarningService.ShowWarningAsync("Could not fetch guilds", $"Error fetching guilds: {result.ErrorMessage}", severity:
+WarningSeverity.ERROR);
             _guilds = [];
+        }
+
+        _isLoadingGuilds = false;
+        StateHasChanged();
+    }
+
+    private string _searchTerm = string.Empty;
+    private List<GuildMember> _searchResults = [];
+
+    public async Task UpdateSearchResults()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm) || _selectedGuildId == null)
+        {
+            _searchResults = [];
+        }
+        else
+        {
+            var result = await DiscordService.GetGuildMembersAsync(_selectedGuildId.Value, _searchTerm);
+            if (result.Success && result.Data != null)
+            {
+                _searchResults = result.Data!;
+            }
+            else
+            {
+                _ = WarningService.ShowWarningAsync("Could not fetch guild members", $"Error fetching guild members: {result.ErrorMessage}", severity: WarningSeverity.ERROR);
+                _searchResults = [];
+            }
         }
         StateHasChanged();
     }
+    
+    public void ShowAddBotInformation()
+    {
+        string htmlBlock = @$"
+            To find and add other users to this mission, you need to add the DCS Ops Board bot to your Discord server. <br>
+            If you're not the server owner, please ask your server administrator to do this for you. <br><br>
+            Invite the bot here: <a href='https://discord.com/oauth2/authorize?client_id={DiscordAuthConfig.Value.ClientId}' target='_blank'>Add DCS Ops Board Bot</a>
+        ";
+        _ = WarningService.ShowWarningAsync("Add the bot to your server", htmlBlock, severity: WarningSeverity.INFO);
+    }
+
 }
 
-<div class="modal fade @( _modalVisible ? "show" : "" )" tabindex="-1" role="dialog" @onclick="ClosedWithoutSelection">
-    <div class="modal-dialog" role="document" @onclick:stopPropagation>
+<div class="modal fade @( _modalVisible ? "show" : "" )" tabindex="-1" role="dialog" @onmousedown="ClosedWithoutSelection" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog" role="document" @onclick:stopPropagation @onmousedown:stopPropagation>
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Find Discord User</h5>
             </div>
-            <div class="modal-body">
+            <div class="modal-body d-flex flex-column">
                 <div class="form-group">
-                    @* Select Guild to search in TODO: Include friends? *@
-                    @* refresh button (in case of error) *@
-                </div>
+                    <label>Select a guild</label>
+                    <div class="d-flex flex-row w-100 align-items-center mb-2">
+                        <div class="dropdown w-75">
+                            <button class="btn btn-secondary dropdown-toggle w-100 overflow-hidden" type="button" id="guildDropdown"
+                                    data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                                    disabled="@_isLoadingGuilds">
+                                @{
+                                    if (_guilds.Count == 0 && !_isLoadingGuilds)
+                                    {
+                                        <span>No guilds found</span>
+                                    }
+                                    else if (_guilds.Count > 0 && !_isLoadingGuilds && _selectedGuildId == null)
+                                    {
+                                        <span>Select a guild</span>
+                                    }
+                                    else if (_isLoadingGuilds)
+                                    {
+                                        <span>Loading guilds...</span>
+                                    }
+                                    else if (_selectedGuildId != null)
+                                    {
+                                        var selectedGuild = _guilds.FirstOrDefault(g => g.Id == _selectedGuildId.ToString());
+                                        if (selectedGuild != null)
+                                        {
+                                            <span><img src="@selectedGuild.IconUrl" alt="@selectedGuild.Name" class="guild-icon" />
+                                                @selectedGuild.Name</span>
+                                        }
+                                    }
+                                }
+                                </button>
+                                <div class="dropdown-menu guild-dropdown w-100" aria-labelledby="guildDropdown">
+                                    @foreach (var guild in _guilds)
+                                    {
+                                        <div class="dropdown-row d-flex flex-row align-items-center p-2"
+                                             @onclick="@(() => GuildSelected(guild.Id))">
+                                            <img src="@guild.IconUrl" alt="@guild.Name" class="guild-icon" />
+                                            <span class="text-white" href="#">@guild.Name</span>
+                                        </div>
+                                    }
+                                </div>
+                        </div>
 
-                <div class="form-group">
-                    @* Input for username and discriminator. Visible when a guild is selected *@
+                        <div class="btn btn-primary ms-2" @onclick="RefreshGuilds"><i class="bi bi-arrow-counterclockwise"></i></div>
+                        <div class="btn btn-secondary ms-2" @onclick="ShowAddBotInformation"><i class="bi bi-info-circle"></i></div>
+                    </div>
                 </div>
+                @if(_selectedGuildId != null)
+                {
+                    <div class="form-group">
+                        <input type="text" class="form-control" placeholder="Search for a user..." @bind="_searchTerm" @onchange="UpdateSearchResults" @bind:event="oninput"  />
+                        <label class="text-muted">type and hit enter to search..</label>
+                    </div>
+
+                    <div class="search-results mt-2 overflow-auto">
+                        @if (_searchResults.Count == 0 && !string.IsNullOrWhiteSpace(_searchTerm))
+                        {
+                            <div class="text-muted">No users found</div>
+                        } else 
+                        {
+                            @foreach (var user in _searchResults)
+                            {
+                                if(user.User == null) { continue; }
+                                <div class="search-result-row d-flex flex-row align-items-center p-2">
+                                    <img src="@user.AvatarUrl" alt="?" class="avatar-icon" />
+                                    <span class="text-white">@user.DisplayName</span>
+                                    <div class="ms-auto">
+                                        <button class="btn btn-sm btn-primary" @onclick="@(() => UserSelected(user.User))">Select</button>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                }
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" @onclick="ClosedWithoutSelection">Cancel</button>

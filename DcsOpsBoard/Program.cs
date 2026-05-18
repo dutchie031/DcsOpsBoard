@@ -28,16 +28,12 @@ services.AddScoped<WarningService>();
 services.AddScoped<IMissionSelectorService, MissionSelectorService>();
 
 //Discord scoped services
-services.AddHttpClient(DiscordClient.HttpClientName, DiscordClient.ConfigureClient)
-.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-{
-    PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-    MaxConnectionsPerServer = 20,
-    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-});
+services.AddHttpClient(DiscordUserClient.HttpClientName, DiscordUserClient.ConfigureClient).ConfigurePrimaryHttpMessageHandler(DiscordUserClient.ConfigureHandler);
+services.AddHttpClient(DiscordBotClient.HttpClientName, DiscordBotClient.ConfigureClient).ConfigurePrimaryHttpMessageHandler(DiscordBotClient.ConfigureHandler);
 
-services.AddScoped<IDiscordClient, DiscordClient>();
+services.Configure<DiscordAuthentication>(builder.Configuration.GetSection("DiscordAuthentication"));
+services.AddScoped<IDiscordUserClient, DiscordUserClient>();
+services.AddSingleton<IDiscordBotClient, DiscordBotClient>();
 services.AddScoped<IFindUserService, FindUserService>();
 
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));
@@ -86,12 +82,21 @@ services.AddAuthentication(options =>
 })
 .AddDiscord(DiscordAuthenticationDefaults.AuthenticationScheme, options =>
 {
-    options.ClientId = builder.Configuration["DiscordAuthentication:ClientId"] ?? throw new InvalidOperationException("Discord client ID not set in environment variables");
-    options.ClientSecret = builder.Configuration["DiscordAuthentication:ClientSecret"] ?? throw new InvalidOperationException("Discord client secret not set in environment variables");
+    DiscordAuthentication discordAuthConfig = builder.Configuration.GetSection("DiscordAuthentication").Get<DiscordAuthentication>() ?? throw new Exception("Failed to load Discord authentication configuration");
+
+    if(string.IsNullOrEmpty(discordAuthConfig.ClientId) || string.IsNullOrEmpty(discordAuthConfig.ClientSecret))
+    {
+        throw new Exception("Discord authentication configuration is missing ClientId or ClientSecret");
+    }
+
+    options.ClientId = discordAuthConfig.ClientId;
+    options.ClientSecret = discordAuthConfig.ClientSecret;
+
     options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 
     options.Scope.Add("identify");
     options.Scope.Add("guilds");
+    options.Scope.Add("guilds.members.read");
 
     options.SaveTokens = true;
 

@@ -83,7 +83,7 @@ window.dcsMap.configureDetailedLayerLookup = function(map) {
 window.dcsMap.setActiveMap = async function(mapName) {
     const state = window.dcsMap._state;
     state.activeMap = (mapName || "unknown").toLowerCase();
-
+    console.log("dcsMap: active map set to", state.activeMap);
     await Promise.all([
         window.dcsMap.ensureCoverageLoaded("detailed", state.activeMap),
         window.dcsMap.ensureCoverageLoaded("buildup", state.activeMap),

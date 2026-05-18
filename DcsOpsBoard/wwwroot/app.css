@@ -139,6 +139,14 @@ body {
     color: #ffffff;
 }
 
+.modal-content input::placeholder {
+    color: #6c757d;
+}
+
+.modal-content input:focus::placeholder {
+    color: #6c757d;
+}
+
 .modal-content input:focus {
     background-color: #262938;
     color: #ffffff;

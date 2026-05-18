@@ -1,21 +1,24 @@
 using System;
+using DcsMissionParser.Net;
+using DcsOpsBoard.Database.Entities;
+using DcsOpsBoard.Types;
 
 namespace DcsOpsBoard.Services;
 
 public interface IMissionSelectorService
 {
-    event Func<Guid, Task>? OnMissionSelected;
-    Task SelectMission(Guid missionId);
+    event Func<OpsPlanningMission, Task>? OnMissionSelected;
+    Task SelectMission(OpsPlanningMission mission);
 }
 
 public class MissionSelectorService : IMissionSelectorService
 {
-    public event Func<Guid, Task>? OnMissionSelected;
-    public async Task SelectMission(Guid missionId)
+    public event Func<OpsPlanningMission, Task>? OnMissionSelected;
+    public async Task SelectMission(OpsPlanningMission mission)
     {
         if (OnMissionSelected is not null)
         {
-            await OnMissionSelected.Invoke(missionId);
+            await OnMissionSelected.Invoke(mission);
         }
     }
 }

@@ -1,15 +1,17 @@
 using System;
+using System.Net;
 using System.Text.Json.Serialization;
+using DcsOpsBoard.Services.Discord.DTOs;
 
 namespace DcsOpsBoard.Services.Discord;
 
-public interface IDiscordClient
+public interface IDiscordUserClient
 {
     public Task<DiscordClientResult<List<PartialGuild>>> GetGuildsForUserAsync();
-    public Task<DiscordClientResult<List<GuildMember>>> GetGuildMembersAsync(string guildId, string search = "");
+    public Task<DiscordClientResult<List<GuildMember>>> GetGuildMembersAsync(ulong guildId, string search = "");
 }
 
-public class DiscordClient : IDiscordClient
+public class DiscordUserClient : IDiscordUserClient
 {
     
     public static readonly string HttpClientName = "DiscordClient";
@@ -19,13 +21,23 @@ public class DiscordClient : IDiscordClient
         client.DefaultRequestHeaders.UserAgent.ParseAdd("DcsOpsBoard/1.0");
     };
 
+    public static readonly Func<HttpMessageHandler> ConfigureHandler = () => new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        MaxConnectionsPerServer = 20,
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    };
+
     private readonly HttpClient _httpClient;
     private readonly IUserAuthenticationState _userAuthenticationState;
+    private readonly IDiscordBotClient _discordBotClient;
 
-    public DiscordClient(IHttpClientFactory httpClientFactory, IUserAuthenticationState userAuthenticationState)
+    public DiscordUserClient(IHttpClientFactory httpClientFactory, IUserAuthenticationState userAuthenticationState, IDiscordBotClient discordBotClient)
     {
         _httpClient = httpClientFactory.CreateClient(HttpClientName);
         _userAuthenticationState = userAuthenticationState;
+        _discordBotClient = discordBotClient;
     }
 
     public async Task<DiscordClientResult<List<PartialGuild>>> GetGuildsForUserAsync()
@@ -52,34 +64,25 @@ public class DiscordClient : IDiscordClient
             return DiscordClientResult<List<PartialGuild>>.FromError("Failed to parse Discord API response");
         }
 
-        return DiscordClientResult<List<PartialGuild>>.FromSuccess(guilds);
+        var botGuilds = await _discordBotClient.GetJoinedGuildsAsync();
+        if (!botGuilds.Success)
+        {
+            return DiscordClientResult<List<PartialGuild>>.FromError($"Failed to get connected guilds: {botGuilds.ErrorMessage}");
+        }
+        
+        List<PartialGuild> mutualGuilds = [..guilds.Where(g => botGuilds.Data!.Any(bg => bg.Id == g.Id))];
+
+        return DiscordClientResult<List<PartialGuild>>.FromSuccess(mutualGuilds);
     }
 
-    public async Task<DiscordClientResult<List<GuildMember>>> GetGuildMembersAsync(string guildId, string search = "")
+    public async Task<DiscordClientResult<List<GuildMember>>> GetGuildMembersAsync(ulong guildId, string search = "")
     {
         await _userAuthenticationState.EnsureLoaded();
-
-        string? access_token = await _userAuthenticationState.GetAccessToken();
-        if (access_token == null)
+        if(_userAuthenticationState.IsAuthenticated == false)
         {
             return DiscordClientResult<List<GuildMember>>.FromError("Not authenticated");
         }
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"guilds/{guildId}/members/search?query={Uri.EscapeDataString(search)}&limit=10");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access_token);
-
-        using var response = await _httpClient.SendAsync(request);
-        if (!response.IsSuccessStatusCode)        {
-            return DiscordClientResult<List<GuildMember>>.FromError($"Discord API returned error: {response.StatusCode}");
-        }
-
-        var members = await response.Content.ReadFromJsonAsync<List<GuildMember>>();
-        if (members == null)
-        {
-            return DiscordClientResult<List<GuildMember>>.FromError("Failed to parse Discord API response");
-        }
-
-        return DiscordClientResult<List<GuildMember>>.FromSuccess(members);
+        return await _discordBotClient.GetGuildMembersAsync(guildId, search);
     }
 }
 
@@ -93,44 +96,3 @@ public class DiscordClientResult<T>
 
 }
 
-public class PartialGuild
-{
-    [JsonPropertyName("id")]
-    public required ulong Id { get; set; }
-
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = null!;
-
-    [JsonPropertyName("icon")]
-    public string? Icon { get; set; }
-
-    [JsonPropertyName("approximate_member_count")]
-    public int? ApproximateMemberCount { get; set; }
-}
-
-public class GuildMember
-{
-    [JsonPropertyName("user")]
-    public DiscordUser? User { get; set; }  
-
-    [JsonPropertyName("nick")]
-    public string? Nickname { get; set; }
-
-    [JsonPropertyName("avatar")]
-    public string? Avatar { get; set; }
-}
-
-public class DiscordUser
-{
-    [JsonPropertyName("id")]
-    public required ulong Id { get; set; }
-
-    [JsonPropertyName("username")]
-    public required string Username { get; set; }
-
-    [JsonPropertyName("avatar")]
-    public string? Avatar { get; set; }
-
-    [JsonPropertyName("global_name")]
-    public string? GlobalName { get; set; }
-}
