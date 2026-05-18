@@ -1,6 +1,9 @@
-﻿@using DcsOpsBoard.Services.Discord
+﻿@using DcsOpsBoard.Components.Modals.Warnings
+@using DcsOpsBoard.Services.Discord
 
+@inject IDiscordClient DiscordService
 @inject IFindUserService FindUserService
+@inject WarningService WarningService
 
 @code {
 
@@ -34,16 +37,43 @@
         InvokeAsync(StateHasChanged);
     }
 
-    public async Task UserSelected(DiscordUser? user = null)
+    public async Task ClosedWithoutSelection()
+    {
+        _tcs?.TrySetResult(null);
+        HideModal();
+    }
+
+    public async Task UserSelected(DiscordUser user)
     {
         _tcs?.TrySetResult(user);
         HideModal();
     }
 
+    public async Task GuildSelected(ChangeEventArgs e)
+    {
+        _selectedGuildId = e.Value?.ToString();
+        StateHasChanged();
+    }
+
+    
+    private List<PartialGuild> _guilds = [];
+    public async Task RefreshGuilds()
+    {
+        var result = await DiscordService.GetGuildsForUserAsync();
+        if (result.Success && result.Data != null)
+        {
+            _guilds = result.Data!;
+        }
+        else
+        {            
+            _ = WarningService.ShowWarningAsync("Could not fetch guilds", $"Error fetching guilds: {result.ErrorMessage}", severity: WarningSeverity.ERROR);
+            _guilds = [];
+        }
+        StateHasChanged();
+    }
 }
 
-
-<div class="modal fade @( _modalVisible ? "show" : "" )" tabindex="-1" role="dialog" @onclick="HideModal">
+<div class="modal fade @( _modalVisible ? "show" : "" )" tabindex="-1" role="dialog" @onclick="ClosedWithoutSelection">
     <div class="modal-dialog" role="document" @onclick:stopPropagation>
         <div class="modal-content">
             <div class="modal-header">
@@ -52,6 +82,7 @@
             <div class="modal-body">
                 <div class="form-group">
                     @* Select Guild to search in TODO: Include friends? *@
+                    @* refresh button (in case of error) *@
                 </div>
 
                 <div class="form-group">
@@ -59,7 +90,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary">Cancel</button>
+                <button type="button" class="btn btn-secondary" @onclick="ClosedWithoutSelection">Cancel</button>
             </div>
         </div>
     </div>

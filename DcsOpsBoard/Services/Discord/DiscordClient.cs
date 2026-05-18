@@ -5,7 +5,8 @@ namespace DcsOpsBoard.Services.Discord;
 
 public interface IDiscordClient
 {
-    
+    public Task<DiscordClientResult<List<PartialGuild>>> GetGuildsForUserAsync();
+    public Task<DiscordClientResult<List<GuildMember>>> GetGuildMembersAsync(string guildId, string search = "");
 }
 
 public class DiscordClient : IDiscordClient
@@ -54,7 +55,7 @@ public class DiscordClient : IDiscordClient
         return DiscordClientResult<List<PartialGuild>>.FromSuccess(guilds);
     }
 
-    public async Task<DiscordClientResult<List<GuildMember>>> GetGuildMembersAsync(string guildId)
+    public async Task<DiscordClientResult<List<GuildMember>>> GetGuildMembersAsync(string guildId, string search = "")
     {
         await _userAuthenticationState.EnsureLoaded();
 
@@ -64,7 +65,7 @@ public class DiscordClient : IDiscordClient
             return DiscordClientResult<List<GuildMember>>.FromError("Not authenticated");
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"guilds/{guildId}/members?limit=1000");
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"guilds/{guildId}/members/search?query={Uri.EscapeDataString(search)}&limit=10");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", access_token);
 
         using var response = await _httpClient.SendAsync(request);

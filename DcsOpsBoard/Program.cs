@@ -40,10 +40,6 @@ services.AddHttpClient(DiscordClient.HttpClientName, DiscordClient.ConfigureClie
 services.AddScoped<IDiscordClient, DiscordClient>();
 services.AddScoped<IFindUserService, FindUserService>();
 
-
-
-
-
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));
 
 builder.Services.AddSingleton<IMissionCache, MissionCache>();

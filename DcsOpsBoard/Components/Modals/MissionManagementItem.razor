@@ -1,13 +1,18 @@
 ﻿@using DcsOpsBoard.Components.Modals.AreYouSure
+@using DcsOpsBoard.Components.Modals.Discord
 @using DcsOpsBoard.Database.Entities
+@using DcsOpsBoard.Database.Enums
 @using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Services
+@using DcsOpsBoard.Services.Discord
 @using Microsoft.EntityFrameworkCore.Metadata.Internal
 
 @inject AreYouSureService AreYouSureService;
 @inject IUserAuthenticationState AuthState;
 @inject IMissionStorageManager MissionStorageManager;
 @inject IMissionSelectorService MissionSelectorService;
+@inject IPermissionManager RoleManagementService;
+@inject IFindUserService FindUserService;
 
 @code {
 
@@ -71,6 +76,15 @@
         await MissionSelectorService.SelectMission(Mission.MissionId);
     }
 
+    public async Task AddNewUserToRole(RoleType roleType)
+    {
+        DiscordUser? user = await FindUserService.FindUserAsync();
+        if(user == null) { return; }
+
+        
+
+    }
+
 }
 
 <div class="row mission-selection-row" @onclick="SelectMission">
@@ -88,7 +102,7 @@
 
 <div class="modal fade @(_modalVisible ? "show" : "hidden") mission-management-modal" tabindex="-1" role="dialog" @onclick="Hide">
     <div class="modal-dialog" role="document" @onclick:stopPropagation>
-        <div class="modal-content">
+        <div class="modal-content" @onclick:stopPropagation>
             <div class="modal-header">
                 <h5 class="modal-title">Manage Mission: @Mission.Name</h5>
             </div>
@@ -114,27 +128,27 @@
                             <div class="h-50 p-2">
                                 <div class="w-100 d-flex justify-content-between">
                                     <span><u>Admins</u></span>
-                                    <button class="btn btn-sm btn-primary"><i class="bi bi-node-plus"></i></button>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.Admin)"><i class="bi bi-node-plus"></i></button>
                                 </div>
                             </div>
                             <div class="h-50 p-2">
                                 <div class="w-100 d-flex justify-content-between">
                                     <span><u>Editors</u></span>
-                                    <button class="btn btn-sm btn-primary"><i class="bi bi-node-plus"></i></button>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.Editor)"><i class="bi bi-node-plus"></i></button>
                                 </div>
                             </div>
                         </div>
                         <div class="col-4 border-end border-white  gx-0">
                             <div class="w-100 d-flex justify-content-between p-2">
                                 <span><u>Blue Flight Leads</u></span>
-                                <button class="btn btn-sm btn-primary"><i class="bi bi-node-plus"></i></button>
+                                <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.BlueFlightLead)"><i class="bi bi-node-plus"></i></button>
                             </div>
                         </div>
-                        <div class="col-4 border-end border-white  gx-0">
+                        <div class="col-4 gx-0">
                             <div class="h-100 border-left border-white p-2">
                                 <div class="w-100 d-flex justify-content-between">
                                     <span><u>Red Flight Leads</u></span>
-                                    <button class="btn btn-sm btn-primary"><i class="bi bi-node-plus"></i></button>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.RedFlightLead)"><i class="bi bi-node-plus"></i></button>
                                 </div>
                             </div>
                         </div>

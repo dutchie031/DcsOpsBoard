@@ -6,14 +6,14 @@ namespace DcsOpsBoard.Components.Modals.Discord;
 public interface IFindUserService
 {
     public Func<Task<DiscordUser?>>? OnFindUserRequested { get; set; }
-    public Task<DiscordUser?> FindUserAsync(string username, string discriminator);
+    public Task<DiscordUser?> FindUserAsync();
 }
 
 public class FindUserService : IFindUserService
 {
     public Func<Task<DiscordUser?>>? OnFindUserRequested { get; set; }
 
-    public async Task<DiscordUser?> FindUserAsync(string username, string discriminator)
+    public async Task<DiscordUser?> FindUserAsync()
     {
         if (OnFindUserRequested != null)
         {
