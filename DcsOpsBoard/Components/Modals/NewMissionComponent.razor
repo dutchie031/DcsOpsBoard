@@ -1,4 +1,5 @@
 ﻿@using DcsMissionParser.Net
+@using DcsOpsBoard.Components.Common
 @using DcsOpsBoard.Components.Modals.Warnings
 @using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Services
@@ -84,7 +85,7 @@
             return;
         }
 
-        _ = await MissionStorageManager.CreateNewMission(bytes, model.MissionFile.Name, model.Name, model.Description, userId.Value, map);
+        _ = await MissionStorageManager.CreateNewMission(bytes, model.MissionFile.Name, model.Name, model.Description, userId.Value, model.MissionType, map);
         
         await MissionCreated.InvokeAsync(null);
         Hide();
@@ -117,11 +118,17 @@
         // TODO: Provide user feedback if the file is not a .miz file.
     }
 
+    private async Task OnMissionTypeSelected(MissionType type)
+    {
+        model.MissionType = type;
+    }
+
     private class NewMissionModel
     {
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public IBrowserFile? MissionFile { get; set; }
+        public MissionType MissionType { get; set; } = MissionType.Singleplayer;
     }
 }
 
@@ -140,6 +147,11 @@
                     <label for="missionDescription">Mission Description</label>
                     <textarea class="form-control text" id="missionDescription" rows="3"
                               @bind="model.Description"></textarea>
+                </div>
+                <div class="form-group">
+                    <div class="w-100 pt-3">
+                        <HorizontalPicker TOption="MissionType" Options="MissionTypeEnum.GetPickerDictionary()" FullWidth="true" OnOptionSelected="OnMissionTypeSelected" />
+                    </div>
                 </div>
                 <div class="form-group mt-3">
                     <label>Mission File</label>

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DcsOpsBoard.Database.Migrations
 {
     [DbContext(typeof(OpsBoardDbContext))]
-    [Migration("20260516155240_init")]
+    [Migration("20260520072215_init")]
     partial class init
     {
         /// <inheritdoc />
@@ -34,6 +34,9 @@ namespace DcsOpsBoard.Database.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Map")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MissionType")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")

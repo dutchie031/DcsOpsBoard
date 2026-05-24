@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Folder Include="Components\Menu\LeftViewItems\" />
     <Folder Include="Components\Modals\AreYouSure\" />
     <Folder Include="Components\Modals\Warnings\" />
     <Folder Include="Configuration\" />

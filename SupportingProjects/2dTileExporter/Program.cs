@@ -1,5 +1,7 @@
-﻿using _2dTileExporter.Exporters;
+﻿using System.Text.Json;
+using _2dTileExporter.Exporters;
 using DcsOpsBoard.Types;
+using Mapbox.Vector.Tile;
 
 
 Dictionary<Map, MapConfig> mapConfigs = new()
@@ -105,6 +107,24 @@ if(action == 0 || action == 3)
 
 if(action == 0 || action == 4)
 {
+    ObjectExporter objectExporter = new (map, 13, 17, config.ObjectFileIntput, config.ObjectsOutputDir);
+    await objectExporter.Export();
+    Console.WriteLine("Map object export complete.");
+}
+
+if(action == 5)
+{
+    using FileStream fileStream = File.OpenRead(@"c:\Users\Tim\Downloads\6-30-20.mvt");
+    List<VectorTileLayer> layersInfo = VectorTileParser.Parse(fileStream);
+
+    var geom = layersInfo.SelectMany(l => l.VectorTileFeatures).First(x => x.GeometryType == Tile.GeomType.Polygon);
+    string geomJson = JsonSerializer.Serialize(geom, new JsonSerializerOptions { WriteIndented = true });
+    File.WriteAllText(@"c:\Users\Tim\Downloads\6-30-20_polygons.json", geomJson);
+     
+    using FileStream reference = File.OpenRead(@"c:\Users\Tim\Downloads\reference.mvt");
+    List<VectorTileLayer> referenceLayers = VectorTileParser.Parse(reference);
+    string referenceJson = JsonSerializer.Serialize(referenceLayers, new JsonSerializerOptions { WriteIndented = true });
+    File.WriteAllText(@"c:\Users\Tim\Downloads\reference.json", referenceJson);
     
 }
 

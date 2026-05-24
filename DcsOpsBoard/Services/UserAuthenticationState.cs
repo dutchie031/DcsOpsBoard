@@ -40,7 +40,7 @@ public class UserAuthenticationState : IUserAuthenticationState
             if(field == null)
             {
                 // Return a default avatar URL or null if not authenticated
-                return "";
+                return "https://cdn.discordapp.com/embed/avatars/0.png";
             }
             return field;
         }

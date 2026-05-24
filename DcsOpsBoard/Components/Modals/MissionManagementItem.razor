@@ -1,4 +1,5 @@
-﻿@using DcsOpsBoard.Components.Modals.AreYouSure
+﻿@using DcsOpsBoard.Components.Common
+@using DcsOpsBoard.Components.Modals.AreYouSure
 @using DcsOpsBoard.Components.Modals.Discord
 @using DcsOpsBoard.Database.Entities
 @using DcsOpsBoard.Database.Enums
@@ -6,6 +7,7 @@
 @using DcsOpsBoard.Services
 @using DcsOpsBoard.Services.Discord
 @using DcsOpsBoard.Services.Discord.DTOs
+@using DcsOpsBoard.Types
 @using Microsoft.EntityFrameworkCore.Metadata.Internal
 
 @inject AreYouSureService AreYouSureService;
@@ -50,6 +52,8 @@
 
     public async Task SaveChanges()
     {
+        await MissionStorageManager.UpdateMissionData(Mission.MissionId, Mission);
+
         await SetModalVisible(false);
         await MissionChanged.InvokeAsync(null);
     }
@@ -86,9 +90,14 @@
 
     }
 
+    public async Task OnMissionTypeSelected(MissionType missionType)
+    {
+        Mission.MissionType = missionType;
+    }
+
 }
 
-<div class="row mission-selection-row" @onclick="SelectMission">
+<div class="row w-100 mission-selection-row" @onclick="SelectMission">
     <div class="col-2">
         <span>@Mission.Name</span>
     </div>
@@ -107,16 +116,18 @@
             <div class="modal-header">
                 <h5 class="modal-title">Manage Mission: @Mission.Name</h5>
             </div>
-            <div class="modal-body">
-                <div class="container w-100 h-100 m-0 p-0">
+            <div class="modal-body w-100">
+                <div class="container-fluid w-100 h-100 m-0 p-0">
                     <div class="row h-50 border-bottom">
                         <div class="col-5">
                             <div class="form-group">
                                 <label for="missionName">Mission Name</label>
                                 <input id="missionName" class="form-control text title-entry" @bind="Mission.Name" />
                             </div>
+                            <div class="w-100 pt-3">
+                              <HorizontalPicker TOption="MissionType" Options="MissionTypeEnum.GetPickerDictionary()" InitialOption="Mission.MissionType" FullWidth="true" OnOptionSelected="OnMissionTypeSelected" />
+                            </div>
                         </div>
-
                         <div class="col-7 h-100">
                             <div class="form-group h-100 d-flex flex-column pb-1">
                                 <label for="missionDescription">Mission Description <span class="text-muted">(Markdown support coming soon...)</span></label>
@@ -125,34 +136,39 @@
                         </div>
                     </div>
                     <div class="row h-50 gap-0">
-                        <div class="col-4 border-end border-white  gx-0">
-                            <div class="h-50 p-2">
-                                <div class="w-100 d-flex justify-content-between">
-                                    <span><u>Admins</u></span>
-                                    <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.Admin)"><i class="bi bi-node-plus"></i></button>
+                        @{
+                            if(Mission.MissionType == Types.MissionType.Multiplayer)
+                            {
+                                <div class="col-4 border-end border-white  gx-0">
+                                    <div class="h-50 p-2">
+                                        <div class="w-100 d-flex justify-content-between">
+                                            <span><u>Admins</u></span>
+                                            <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.Admin)"><i class="bi bi-node-plus"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="h-50 p-2">
+                                        <div class="w-100 d-flex justify-content-between">
+                                            <span><u>Editors</u></span>
+                                            <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.Editor)"><i class="bi bi-node-plus"></i></button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="h-50 p-2">
-                                <div class="w-100 d-flex justify-content-between">
-                                    <span><u>Editors</u></span>
-                                    <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.Editor)"><i class="bi bi-node-plus"></i></button>
+                                <div class="col-4 border-end border-white  gx-0">
+                                    <div class="w-100 d-flex justify-content-between p-2">
+                                        <span><u>Blue Flight Leads</u></span>
+                                        <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.BlueFlightLead)"><i class="bi bi-node-plus"></i></button>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
-                        <div class="col-4 border-end border-white  gx-0">
-                            <div class="w-100 d-flex justify-content-between p-2">
-                                <span><u>Blue Flight Leads</u></span>
-                                <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.BlueFlightLead)"><i class="bi bi-node-plus"></i></button>
-                            </div>
-                        </div>
-                        <div class="col-4 gx-0">
-                            <div class="h-100 border-left border-white p-2">
-                                <div class="w-100 d-flex justify-content-between">
-                                    <span><u>Red Flight Leads</u></span>
-                                    <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.RedFlightLead)"><i class="bi bi-node-plus"></i></button>
+                                <div class="col-4 gx-0">
+                                    <div class="h-100 border-left border-white p-2">
+                                        <div class="w-100 d-flex justify-content-between">
+                                            <span><u>Red Flight Leads</u></span>
+                                            <button class="btn btn-sm btn-primary" @onclick="() => AddNewUserToRole(RoleType.RedFlightLead)"><i class="bi bi-node-plus"></i></button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
+                            }
+                        }
                     </div>
                 </div>
             </div>

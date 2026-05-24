@@ -17,6 +17,7 @@ public class OpsPlanningMission
 
     public required string UploadedMissionName { get; set; }
     public required Map Map { get; set; }
+    public required MissionType MissionType { get; set; }
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     public DateTime LastEditedAt { get; set; } = DateTime.UtcNow;
 

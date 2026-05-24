@@ -1,0 +1,46 @@
+.picker-container {
+    position: relative;
+    display: flex;
+    background: #262938;
+    border-radius: 6px;
+    padding: 3px;
+    gap: 0;
+}
+
+.picker-container.auto-width {
+    display: inline-flex;
+}
+
+.picker-container.full-width {
+    width: 100%;
+}
+
+.picker-slider {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    width: calc(100% / var(--button-count) - 6px / var(--button-count));
+    transform: translateX(calc(var(--selected-index) * 100%));
+    background: #0d6efd;
+    border-radius: 4px;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.picker-btn {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #ccc;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.picker-btn.active {
+    color: #fff;
+    font-weight: 600;
+}

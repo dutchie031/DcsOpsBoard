@@ -1,4 +1,6 @@
-﻿@using DcsOpsBoard.Components.Modals
+﻿@using DcsOpsBoard.Components.Common
+@using DcsOpsBoard.Components.Menu.LeftViewItems
+@using DcsOpsBoard.Components.Modals
 @using DcsOpsBoard.Database.Entities
 @using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Services
@@ -14,6 +16,7 @@
 
     private bool keepOpen = false;
 
+    private LeftViewItem _selectedLeftViewItem = LeftViewItem.Home;
 
     public void OnModalVisibilityChanged(bool visible)
     {
@@ -33,7 +36,7 @@
 
     private async void AuthenticationStateChanged()
     {
-        if(!authState.IsAuthenticated)
+        if (!authState.IsAuthenticated)
         {
             _myMissions = [];
             StateHasChanged();
@@ -45,7 +48,7 @@
         );
         StateHasChanged();
     }
-    
+
     protected override async Task OnInitializedAsync()
     {
         authState.OnAuthenticationStateChanged += AuthenticationStateChanged;
@@ -62,7 +65,7 @@
             StateHasChanged();
         }
     }
-    
+
     private void OnMissionDeleted(OpsPlanningMission mission)
     {
         _myMissions.RemoveAll(m => m.MissionId == mission.MissionId);
@@ -75,9 +78,27 @@
         StateHasChanged();
         _newMissionModal?.ShowNew();
     }
-}
+    
+    private enum LeftViewItem
+    {
+        Home = 0,
+        How_It_Works = 1,
+        About_Us = 2,
+    }
 
-<NewMissionComponent @ref="_newMissionModal" ModalVisibilityChanged="OnModalVisibilityChanged" MissionCreated="OnNewMissionCreated" />
+    private Dictionary<string,LeftViewItem> GetLeftViewItems()
+    {
+        return Enum.GetValues<LeftViewItem>().ToDictionary(e => e.ToString().Replace("_", " "), e => e);    
+    }
+
+    private async Task OnLeftViewItemSelected(LeftViewItem item)
+    {
+        _selectedLeftViewItem = item;
+    }
+}   
+
+<NewMissionComponent @ref="_newMissionModal" ModalVisibilityChanged="OnModalVisibilityChanged"
+                     MissionCreated="OnNewMissionCreated" />
 
 <div class="top-menu-body @((keepOpen ? "locked-open" : ""))">
     <div class="top-menu-header">
@@ -88,10 +109,10 @@
 
                 @if (authState.IsAuthenticated)
                 {
-                    <img id="user-avatar" src="@authState.AvatarUrl" alt="?"/>
+                    <img id="user-avatar" src="@authState.AvatarUrl" alt="?" />
                     <span id="user-name">@authState.Username</span>
-                } 
-                else 
+                }
+                else
                 {
                     <a class="login-link" href="/api/account/login">Log In Now</a>
                 }
@@ -104,47 +125,69 @@
             </div>
         </div>
     </div>
-     
+
     <div class="top-menu-content">
-        <div class="container w-100">
-        @{
-            if(!authState.IsAuthenticated)
-            {
-                <div class="alert alert-warning" role="alert">
-                    You are not logged in. Please log in to access all features of the DCS Ops Board.
-                </div>
-            } 
-            else 
-            {
-                <div class="row">
-                    <div class="col-3">
-                        <h2>My Missions</h2>
-                    </div>
-                    <div class="col-3">
-                        <div class="btn btn-primary" @onclick="ShowNewMissionModal">Create New Mission</div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-7">
-                        @if (_myMissions.Count == 0)
+        <div class="container-fluid w-100 h-100 p-0 m-0">
+            <div class="row h-100">
+                <div class="col-12 col-xxl-6 pe-5">
+                    <h2>Welcome to the DCS Ops Board!</h2>
+                    <p>This is a mission planning and management tool for DCS World. Use the menu on the left to create
+                        and manage your missions, or select a mission to view details and assign roles.</p>
+                       
+                    <HorizontalPicker TOption="LeftViewItem" Options="GetLeftViewItems()"  FullWidth="true" InitialOption="LeftViewItem.Home" OnOptionSelected="OnLeftViewItemSelected" />
+                    @{
+                        if(_selectedLeftViewItem == LeftViewItem.About_Us)
                         {
-                            <p>You have no missions. Create one to get started!</p>
-                        } 
-                        else 
+                           <AboutUs />
+                        } else if(_selectedLeftViewItem == LeftViewItem.How_It_Works)
                         {
-                            <div class="container">
-                                @foreach (var mission in _myMissions)
-                                {
-                                    <MissionManagementItem @key="mission.MissionId" Mission="mission" ModalVisibilityChanged="OnModalVisibilityChanged" MissionDeleted="OnMissionDeleted" />
-                                }
+                            <HowItWorks />
+                        } else
+                        {
+                             <Home />
+                        }
+                    }
+                
+                </div>
+                <div class="col-12 col-xxl-6">
+                    <div class="container-fluid w-100 p-0 m-0 pt-10">
+                        @if (authState.IsAuthenticated)
+                        {
+                            <div class="row">
+                                <div class="col-3">
+                                    <h2>My Missions</h2>
+                                </div>
+                                <div class="col-3">
+                                    <div class="btn btn-primary" @onclick="ShowNewMissionModal">Create New Mission</div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    @if (_myMissions.Count == 0)
+                                    {
+                                        <p>You have no missions. Create one to get started!</p>
+                                    }
+                                    else
+                                    {
+                                        <div class="container-fluid w-100 p-0 m-0">
+                                            @foreach (var mission in _myMissions)
+                                            {
+                                                <MissionManagementItem @key="mission.MissionId" Mission="mission"
+                                                                        ModalVisibilityChanged="OnModalVisibilityChanged"
+                                                                        MissionDeleted="OnMissionDeleted" />
+                                            }
+                                        </div>
+                                    }
+                                </div>
                             </div>
                         }
                     </div>
                 </div>
-            }
-        }
+            </div>
+
         </div>
-        
+
+
     </div>
 </div>
 

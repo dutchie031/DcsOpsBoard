@@ -38,7 +38,7 @@ public interface IMissionStorageManager
     /// <param name="ownerId">ID of the user who owns the mission</param>
     /// <param name="map">Map of the mission</param>
     /// <returns></returns>
-    Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId, Map map);
+    Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId, MissionType missionType, Map map);
 
     /// <summary>
     /// Gets a mission by its ID. This will read the mission file from disk and parse it into a MizObject.
@@ -47,6 +47,13 @@ public interface IMissionStorageManager
     /// <exception cref="FileNotFoundException">Thrown when the mission file is not found on disk</exception>
     /// <returns>A DcsMission representing the mission</returns>
     Task<DcsMission?> GetMission(Guid missionId);
+
+    /// <summary>
+    /// Gets mission metadata by its ID. This will read the mission metadata from the database.
+    /// </summary>
+    /// <param name="missionId"></param>
+    /// <returns></returns>
+    Task<OpsPlanningMission?> GetMissionMetadata(Guid missionId);
 
     /// <summary>
     /// Gets missions with optional filtering. This will read the mission files from disk and parse them into MizObjects.
@@ -65,6 +72,14 @@ public interface IMissionStorageManager
     Task UpdateMission(Guid missionId, DcsMission updatedMizObject);
 
     /// <summary>
+    /// Updates mission metadata in the database. Only modifies the provided mission properties.
+    /// </summary>
+    /// <param name="missionId">ID of the mission to update</param>
+    /// <param name="updatedData">Mission with updated data</param>
+    /// <returns></returns>
+    Task<OpsPlanningMission> UpdateMissionData(Guid missionId, OpsPlanningMission updatedData);
+
+    /// <summary>
     /// Deletes a mission. This will delete the mission file from disk and remove the metadata from the database. <br>
     /// </summary>
     /// <param name="missionId"></param>
@@ -76,7 +91,7 @@ public interface IMissionStorageManager
 public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbContextFactory, IOptions<DatabaseConfiguration> dbOptions) : IMissionStorageManager
 {
     private readonly DatabaseConfiguration _config = dbOptions.Value;
-    public async Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId, Map map)
+    public async Task<OpsPlanningMission?> CreateNewMission(byte[] uploadedMizFile, string uploadedMissionName, string name, string description, ulong ownerId, MissionType missionType, Map map)
     {
         using OpsBoardDbContext dbContext = _dbContextFactory.CreateDbContext();
         OpsPlanningMission newMission = new()
@@ -85,6 +100,7 @@ public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbConte
             Description = description,
             UploadedMissionName = uploadedMissionName,
             OwnerId = ownerId,
+            MissionType = missionType,
             Map = map
         };
 
@@ -185,5 +201,36 @@ public class MissionStorageManager(IDbContextFactory<OpsBoardDbContext> _dbConte
             dbContext.OpsPlanningMissions.Remove(mission);
             await dbContext.SaveChangesAsync();
         }
+    }
+
+    public async Task<OpsPlanningMission> UpdateMissionData(Guid missionId, OpsPlanningMission updatedData)
+    {
+        using OpsBoardDbContext dbContext = _dbContextFactory.CreateDbContext();
+
+        OpsPlanningMission? mission = await dbContext.OpsPlanningMissions.FirstOrDefaultAsync(m => m.MissionId == missionId)
+            ?? throw new KeyNotFoundException($"Mission not found with ID {missionId}");
+
+        // Properties that should never be updated (system-managed fields)
+        var protectedProperties = new[] { nameof(OpsPlanningMission.MissionId), nameof(OpsPlanningMission.OwnerId), nameof(OpsPlanningMission.UploadedAt) };
+
+        // Copy all updatable properties from the input
+        foreach (var prop in typeof(OpsPlanningMission).GetProperties())
+        {
+            if (prop.CanWrite && !protectedProperties.Contains(prop.Name))
+            {
+                prop.SetValue(mission, prop.GetValue(updatedData));
+            }
+        }
+
+        dbContext.OpsPlanningMissions.Update(mission);
+        await dbContext.SaveChangesAsync();
+
+        return mission;
+    }
+
+    public async Task<OpsPlanningMission?> GetMissionMetadata(Guid missionId)
+    {
+        using OpsBoardDbContext dbContext = _dbContextFactory.CreateDbContext();
+        return await dbContext.OpsPlanningMissions.FindAsync(missionId);
     }
 }

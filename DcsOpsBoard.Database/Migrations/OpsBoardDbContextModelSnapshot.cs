@@ -33,6 +33,9 @@ namespace DcsOpsBoard.Database.Migrations
                     b.Property<int>("Map")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("MissionType")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");

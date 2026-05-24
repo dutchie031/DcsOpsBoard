@@ -26,7 +26,7 @@ public class TileController : ControllerBase
             return NoContent();
         }
 
-        string filePath = Path.Combine(BaseDirectory, "base", map, z.ToString(), x.ToString(), $"{y}.webp");
+        string filePath = Path.Combine(BaseDirectory, map, "base", z.ToString(), x.ToString(), $"{y}.webp");
         if (!System.IO.File.Exists(filePath))
         {
             return NoContent();
@@ -44,7 +44,7 @@ public class TileController : ControllerBase
             return NoContent();
         }
 
-        string filePath = Path.Combine(BaseDirectory, "detailed", map, z.ToString(), x.ToString(), $"{y}.webp");
+        string filePath = Path.Combine(BaseDirectory, map, "detailed", z.ToString(), x.ToString(), $"{y}.webp");
         if (!System.IO.File.Exists(filePath))
         {
             return NoContent();
@@ -58,7 +58,7 @@ public class TileController : ControllerBase
         //Cache control on coverage data should be low, should only really download once per session anyway.
 
         this.Response.Headers["Cache-Control"] = "public, max-age=3600"; // 1 hour cache for coverage data
-        string filePath = Path.Combine(BaseDirectory, "detailed", map, "coverage.json");
+        string filePath = Path.Combine(BaseDirectory, map, "detailed", "coverage.json");
         if (!System.IO.File.Exists(filePath))
         {
             return NoContent();
@@ -70,11 +70,35 @@ public class TileController : ControllerBase
     public IActionResult GetShader(string map, int z, int x, int y)
     {
         this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
-        string filePath = Path.Combine(BaseDirectory, "shaders", map, z.ToString(), x.ToString(), $"{y}.webp");
+        string filePath = Path.Combine(BaseDirectory, map, "shaders", z.ToString(), x.ToString(), $"{y}.webp");
         if (!System.IO.File.Exists(filePath))
         {
             return NoContent();
         }
         return PhysicalFile(filePath, "image/webp");
+    }
+
+    [HttpGet("objects/{map}/{z}/{x}/{y}.mvt")]
+    public IActionResult GetObjectTile(string map, int z, int x, int y)
+    {
+        this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+        string filePath = Path.Combine(BaseDirectory, map, "objects", z.ToString(), x.ToString(), $"{y}.mvt");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NoContent();
+        }
+        return PhysicalFile(filePath, "application/vnd.mapbox-vector-tile");
+    }
+
+    [HttpGet("objects/{map}/coverage.json")]
+    public IActionResult GetObjectCoverage(string map)
+    {
+        this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=3600"; // 1 hour cache for coverage data
+        string filePath = Path.Combine(BaseDirectory, map, "objects", "coverage.json");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NoContent();
+        }
+        return PhysicalFile(filePath, "application/json");
     }
 }

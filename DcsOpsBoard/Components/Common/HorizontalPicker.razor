@@ -1,0 +1,60 @@
+﻿
+@typeparam TOption
+
+@code {
+
+    [Parameter]
+    public required Dictionary<string, TOption> Options { get; set; }
+
+    [Parameter]
+    public TOption? InitialOption { get; set; }
+
+    [Parameter]
+    public required EventCallback<TOption> OnOptionSelected { get; set; }
+
+    [Parameter]
+    public bool FullWidth { get; set; }
+
+    private Dictionary<string, int> optionIndices = [];
+
+    private int selectedIndex = 0;
+    private bool hasInitializedSelection = false;
+
+    protected override void OnParametersSet()
+    {
+        optionIndices = Options.Keys.Select((key, index) => new { key, index })
+                                    .ToDictionary(x => x.key, x => x.index);
+
+        if (!hasInitializedSelection && InitialOption != null)
+        {
+            string? initialKey = Options.FirstOrDefault(kvp => EqualityComparer<TOption>.Default.Equals(kvp.Value, InitialOption)).Key;
+            if (initialKey != null && optionIndices.TryGetValue(initialKey, out int index))
+            {
+                selectedIndex = index;
+                hasInitializedSelection = true;
+            }
+        }
+    }
+
+    private async Task OnOptionSelectedInternal(TOption option, int index)
+    {
+        selectedIndex = index;
+        hasInitializedSelection = true;
+
+        await OnOptionSelected.InvokeAsync(option);
+        await InvokeAsync(StateHasChanged);
+    }
+}
+
+<div class="picker-container @(FullWidth ? "full-width" : "auto-width")"
+    style="--selected-index: @selectedIndex; --button-count: @Options.Count">
+    <div class="picker-slider"></div>
+    @foreach (var option in Options)
+    {
+        int index = optionIndices[option.Key];
+        <button class="picker-btn @(index == selectedIndex ? "active" : "")" 
+                @onclick="@(() => OnOptionSelectedInternal(option.Value, index))">
+            @option.Key
+        </button>
+    }
+</div>

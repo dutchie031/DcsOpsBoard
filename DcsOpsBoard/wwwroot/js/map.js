@@ -24,7 +24,7 @@ window.dcsMap.configureDetailedLayerLookup = function(map) {
             source.setTileUrlFunction(function(tileCoord) {
                 if (!tileCoord) return undefined;
                 const z = tileCoord[0], x = tileCoord[1], y = tileCoord[2];
-                if (z < 15 || z > 17) return undefined;
+                if (z < 14 || z > 17) return undefined;
                 const coverage = state.detailedCoverageByMap.get(state.activeMap);
                 if (!coverage || !window.dcsMap.isCovered(coverage, z, x, y)) return undefined;
                 return `/api/detailed-tiles/${state.activeMap}/${z}/${x}/${y}.webp`;
@@ -36,36 +36,19 @@ window.dcsMap.configureDetailedLayerLookup = function(map) {
         console.warn("dcsMap: detailed-layer not found");
     }
 
-    // --- buildup MVT layer ---
-    const buildupLayer = map.getAllLayers().find((l) => l.get("id") === "buildup-layer");
-    if (buildupLayer) {
-        const source = buildupLayer.getSource();
-        if (source && typeof source.setTileUrlFunction === "function") {
-            state.buildupSource = source;
-            source.setTileUrlFunction(function(tileCoord) {
-                if (!tileCoord) return undefined;
-                const z = tileCoord[0], x = tileCoord[1], y = tileCoord[2];
-                const coverage = state.buildupCoverageByMap.get(state.activeMap);
-                if (!coverage || !window.dcsMap.isCovered(coverage, z, x, y)) return undefined;
-                return `/api/buildup/${state.activeMap}/${z}/${x}/${y}.mvt`;
-            });
-        } else {
-            console.warn("dcsMap: buildup-layer source does not support setTileUrlFunction");
-        }
-    } else {
-        console.warn("dcsMap: buildup-layer not found");
-    }
-
     // --- objects MVT layer ---
     const objectsLayer = map.getAllLayers().find((l) => l.get("id") === "object-layer");
     if (objectsLayer) {
         const source = objectsLayer.getSource();
         if (source && typeof source.setTileUrlFunction === "function") {
+            console.log(source);
             state.objectsSource = source;
             source.setTileUrlFunction(function(tileCoord) {
                 if (!tileCoord) return undefined;
-                const z = tileCoord[0], x = tileCoord[1], y = tileCoord[2];
-                if (z < 15 || z > 17) return undefined;
+                const z = tileCoord[0];
+                const x = tileCoord[1];
+                const y = tileCoord[2];
+                if (z < 12 || z > 17) return undefined;
                 const coverage = state.objectsCoverageByMap.get(state.activeMap);
                 if (!coverage || !window.dcsMap.isCovered(coverage, z, x, y)) return undefined;
                 return `/api/objects/${state.activeMap}/${z}/${x}/${y}.mvt`;
@@ -73,9 +56,25 @@ window.dcsMap.configureDetailedLayerLookup = function(map) {
         } else {
             console.warn("dcsMap: object-layer source does not support setTileUrlFunction");
         }
+
+        objectsLayer.setStyle(function(feature, zoom) {
+            console.log("Styling feature at zoom", zoom, feature);
+            return new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: '#ff3300', width: 2 }),
+                fill: new ol.style.Fill({ color: 'rgba(255,51,0,0.18)' }),
+                text: new ol.style.Text({
+                    text: feature.get && feature.get('name') ? feature.get('name') : '',
+                    offsetY: -12,
+                    fill: new ol.style.Fill({ color: '#fff' }),
+                    stroke: new ol.style.Stroke({ color: '#000', width: 2 })
+                })
+            });
+        });
+
     } else {
         console.warn("dcsMap: object-layer not found");
     }
+    
 
     window.dcsMap.refreshAllSources();
 };

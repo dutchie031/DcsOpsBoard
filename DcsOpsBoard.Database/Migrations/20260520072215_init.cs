@@ -21,6 +21,7 @@ namespace DcsOpsBoard.Database.Migrations
                     OwnerId = table.Column<ulong>(type: "INTEGER", nullable: false),
                     UploadedMissionName = table.Column<string>(type: "TEXT", nullable: false),
                     Map = table.Column<int>(type: "INTEGER", nullable: false),
+                    MissionType = table.Column<int>(type: "INTEGER", nullable: false),
                     UploadedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     LastEditedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },

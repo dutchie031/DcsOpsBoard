@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using DcsOpsBoard.Database.Entities;
 using DcsOpsBoard.Database.Enums;
 using DcsOpsBoard.Database.Services;
 using DcsOpsBoard.Hubs.HubModels;
@@ -10,22 +11,26 @@ namespace DcsOpsBoard.Hubs.MissionEditing;
 public class CursorHub : Hub, IBaseHub
 {
     public static string ReceivedCursorPositionMethodName = "ReceiveCursorPosition";
+    public static string SendCursorPositionMethodName = nameof(SendCursorPosition);
+    public static string JoinCursorGroupMethodName = nameof(JoinCursorGroup);
 
     private readonly IPermissionManager _permissionManager;
+    private readonly IMissionStorageManager _missionStorageManager;
 
     private static readonly ConcurrentDictionary<string, Guid> _connectionMissions = [];
     private static readonly ConcurrentDictionary<string, RoleType> _connectionRoles = [];
 
     public static string HubUrl => "/hubs/cursorhub";
 
-    public CursorHub(IPermissionManager permissionManager)
+    public CursorHub(IPermissionManager permissionManager, IMissionStorageManager missionStorageManager)
     {
         _permissionManager = permissionManager;
+        _missionStorageManager = missionStorageManager;
     }
 
-    public async Task JoinCursorGroup(Guid missionId, string userId)
+    public async Task JoinCursorGroup(Guid missionId, ulong userId)
     {
-        if (!ulong.TryParse(userId, out ulong parsedUserId))
+        if(userId == 0)
         {
             return;
         }
@@ -46,11 +51,18 @@ public class CursorHub : Hub, IBaseHub
 
         // Verify permissions.
         var highest = _permissionManager
-            .GetPermissionsForMission(missionId, parsedUserId)
+            .GetPermissionsForMission(missionId, userId)
             .Where(x => x.Role != RoleType.Unknown)
             .Select(x => x.Role)
             .DefaultIfEmpty(RoleType.Unknown)
             .Min();
+
+        //If unknown check if user is owner
+        OpsPlanningMission? mission = await _missionStorageManager.GetMissionMetadata(missionId);
+        if (mission != null && mission.OwnerId == userId)
+        {
+            highest = RoleType.Admin;
+        }
 
         if (highest == RoleType.Unknown || highest == RoleType.Viewer)
         {
@@ -81,7 +93,7 @@ public class CursorHub : Hub, IBaseHub
 
         foreach (RoleType receiverRole in GetCursorReceiverRoles(role))
         {
-            await Clients.Group(CursorGroupName(missionId, receiverRole)).SendAsync(ReceivedCursorPositionMethodName, cursorData);
+            await Clients.GroupExcept(CursorGroupName(missionId, receiverRole), Context.ConnectionId).SendAsync(ReceivedCursorPositionMethodName, cursorData);
         }
     }
 

@@ -1,4 +1,5 @@
 ﻿@using DcsMissionParser.Net.CoordMapping
+@using DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Tasks
 @using DcsOpsBoard.Configuration
 @using DcsOpsBoard.Database.Entities
 @using DcsOpsBoard.Database.Services
@@ -22,11 +23,13 @@
 
 @code {
     private OpsPlanningMission? _currentMission;
-    private OpenLayers.Blazor.Map? _map;
+    private OpenLayers.Blazor.Map _map = null!;
+    private Layer _extentLayer = null!;
     private Layer? _baseLayer;
     private Layer? _shaderLayer;
     private Layer? _detailedLayer;
-
+    private Layer? _objectsLayer;
+    
     private Layer? _cursorLayer;
     private object BaseTileSourceOptions = new
     {
@@ -41,6 +44,11 @@
     private object DetailedTileSourceOptions = new
     {
         MaxZoom = 17
+    };
+
+    private object VectorTileSourceOptions = new
+    {   
+
     };
 
     private Task OnZoomChanged(double zoomLevel)
@@ -61,6 +69,7 @@
 
         await JS.InvokeVoidAsync("dcsMap.setActiveMap", _currentMission.Map.ToMapString());
 
+        
         await JoinCursorsHub();
         await InvokeAsync(StateHasChanged);
 
@@ -74,6 +83,14 @@
         }
     }
 
+#region Mission Editor 
+
+#endregion
+
+
+#region Cursor Management
+
+    private CursorData? _myCursorData = null;
     private bool _registeredCursorHandler = false;
     private async Task JoinCursorsHub()
     {
@@ -88,21 +105,33 @@
             return;
         }
 
+        _myCursorData = new CursorData
+        {
+            UserId = AuthState.DiscordId.Value,
+            MissionId = _currentMission.MissionId,
+            UserName = AuthState.Username ?? "Unknown",
+            AvatarUrl = AuthState.AvatarUrl ?? string.Empty,
+            Lat = 0,
+            Lon = 0
+        };
+
         await CursorHubProvider.EnsureStartedAsync();
 
-        if (_registeredCursorHandler) return;
-
-        CursorHubProvider.Connection.On<CursorData>(CursorHub.ReceivedCursorPositionMethodName, async (data) =>
+        if (!_registeredCursorHandler) 
         {
-            if (!UserMapSettings.ShowFriendlyCursors)
+            CursorHubProvider.Connection.On<CursorData>(CursorHub.ReceivedCursorPositionMethodName, async (data) =>
             {
-                return;
-            }
+                if (!UserMapSettings.ShowFriendlyCursors)
+                {
+                    return;
+                }
 
-            _ = UpdateCursor(data);
-        });
+                _ = UpdateCursor(data);
+            });
+            _registeredCursorHandler = true;
+        };
 
-        _registeredCursorHandler = true;
+        await CursorHubProvider.Connection.SendAsync(CursorHub.JoinCursorGroupMethodName, _currentMission.MissionId, AuthState.DiscordId);
     }
 
     private readonly Dictionary<string, Shape> _cursorShapes = [];
@@ -124,6 +153,40 @@
             {
                 Id = cursorId,
                 Coordinates = new Coordinates(new Coordinate(data.Lon, data.Lat)),
+                Styles = [
+                    new()
+                    {
+                        Circle = new StyleOptions.CircleStyleOptions
+                        {
+                            Radius = 10,
+                            Fill = new StyleOptions.FillOptions
+                            {
+                                Color = "#222430"
+                            },
+                            Stroke = new StyleOptions.StrokeOptions
+                            {
+                                Color = "#222430",
+                                Width = 2
+                            },
+                            Opacity = 0.7
+                        }
+                    },
+                    new () 
+                    {
+                        Icon = new StyleOptions.IconStyleOptions
+                        {
+                            AnchorOrigin = StyleOptions.IconOrigin.TopRight,
+                            AnchorXUnits = StyleOptions.IconAnchorUnits.Fraction,
+                            AnchorYUnits = StyleOptions.IconAnchorUnits.Fraction,
+                            Anchor = new double[] { 0.5, 0.5 },
+                            Opacity = 1,
+                            Width = 16,
+                            Height = 16,
+                            Source = data.AvatarUrl,
+                        }
+                    }
+                
+                ]
             };
 
             _cursorShapes[cursorId] = shape;
@@ -136,20 +199,63 @@
         await shape.UpdateCoordinates();
     }
 
+    private DateTime _lastPointerSent= DateTime.MinValue;
+    private TimeSpan PointerUpdateInterval = TimeSpan.FromMilliseconds(100);
     
-    public Extent? GetExtent()
+    private async Task OnPointerMove(Coordinate coordinate) 
     {
-        if(_currentMission == null)
+        var now = DateTime.UtcNow;
+        if (now - _lastPointerSent < PointerUpdateInterval)
+        {
+            return;
+        }
+
+        if(CursorHubProvider.Connection.State != HubConnectionState.Connected)
+        {
+            return;
+        }
+
+        if (_myCursorData == null || _currentMission == null)
+        {
+            return;
+        }
+
+        _myCursorData.Lat = coordinate.Y;
+        _myCursorData.Lon = coordinate.X;
+
+        await CursorHubProvider.Connection.SendAsync(CursorHub.SendCursorPositionMethodName, _currentMission.MissionId, _myCursorData);
+    }
+
+#endregion
+
+
+    public Extent GetExtent()
+    {
+        if(_currentMission == null )
         {
             return null;
         }
-
         var limits = _currentMission.Map.Limits;
         return new Extent(
             limits.BottomLeft.Lon,
             limits.BottomLeft.Lat,
             limits.TopRight.Lon,
             limits.TopRight.Lat);
+    }
+
+    private StyleOptions GetObjectLayerStyle()
+    {
+        return new StyleOptions
+        {
+            Fill = new StyleOptions.FillOptions { Color = "rgba(255,0,255,0.5)" },
+            Stroke = new StyleOptions.StrokeOptions { Color = "#000", Width = 3 },
+            Circle = new StyleOptions.CircleStyleOptions
+            {
+                Radius = 8,
+                Fill = new StyleOptions.FillOptions { Color = "rgba(255,255,0,0.5)" },
+                Stroke = new StyleOptions.StrokeOptions { Color = "#000000", Width = 2 }
+            }
+        };
     }
 
 }
@@ -160,12 +266,15 @@
     @if (_currentMission != null)
     {
         <Map
+            OnPointerMove="OnPointerMove"
             @key="@($"map-{_currentMission.MissionId}")" 
             @ref="_map"
             style=@($"height: 100%; width: 100%; z-index: 0; {(_currentMission == null ? "display:none;" :
                                   "")}") ZoomChanged="OnZoomChanged" MaxZoom="_currentMission!.Map.MaxZoom" MinZoom="_currentMission.Map.MinZoom"
              ConfigureJsMethod="dcsMap.configureDetailedLayerLookup">
             <Layers>
+
+                <Layer @ref="_extentLayer" Extent="@GetExtent()" Opacity="0"/>
 
                 <Layer @key="@(_currentMission?.MissionId)"
                         @ref="_baseLayer" Id="base-layer" 
@@ -182,6 +291,13 @@
                        Visibility="@(UserMapSettings.ShowElevationShader)"
                        Url=@($"/api/shaders/{_currentMission?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") MinZoom="6"
                        SourceType="SourceType.XYZ" Opacity="0.20" Format="image/webp" />
+                
+                <Layer @ref="_objectsLayer" Id="object-layer" 
+                    SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
+                    MinZoom="14" MaxZoom="17"
+                    SourceOptions="VectorTileSourceOptions"
+                    Style="@GetObjectLayerStyle()"
+                    Visibility="true" />
 
                 <Layer @ref="_cursorLayer" Id="cursor-layer" LayerType="LayerType.Vector"
                        Visibility="@(UserMapSettings.ShowFriendlyCursors)" />
