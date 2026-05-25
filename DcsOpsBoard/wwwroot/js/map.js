@@ -39,11 +39,17 @@ window.dcsMap.configureDetailedLayerLookup = function(map) {
     // --- objects MVT layer ---
     const objectsLayer = map.getAllLayers().find((l) => l.get("id") === "object-layer");
     if (objectsLayer) {
-        const source = objectsLayer.getSource();
-        if (source && typeof source.setTileUrlFunction === "function") {
-            console.log(source);
-            state.objectsSource = source;
-            source.setTileUrlFunction(function(tileCoord) {
+        const source = new ol.source.VectorTile({
+            format: new ol.format.MVT({
+                featureClass: ol.Feature
+            }),
+            projection: "EPSG:3857",
+            wrapX: false,
+            tileGrid: ol.tilegrid.createXYZ({
+                maxZoom: 17,
+                tileSize: 512
+            }),
+            tileUrlFunction: function(tileCoord) {
                 if (!tileCoord) return undefined;
                 const z = tileCoord[0];
                 const x = tileCoord[1];
@@ -52,23 +58,47 @@ window.dcsMap.configureDetailedLayerLookup = function(map) {
                 const coverage = state.objectsCoverageByMap.get(state.activeMap);
                 if (!coverage || !window.dcsMap.isCovered(coverage, z, x, y)) return undefined;
                 return `/api/objects/${state.activeMap}/${z}/${x}/${y}.mvt`;
-            });
-        } else {
-            console.warn("dcsMap: object-layer source does not support setTileUrlFunction");
-        }
+            },
+            tileLoadFunction: function(tile, url) {
+                tile.setLoader(function(extent) {
+                    fetch(url)
+                        .then(function(response) {
+                            if (!response.ok) {
+                                throw new Error(`tile fetch failed: ${response.status}`);
+                            }
+                            return response.arrayBuffer();
+                        })
+                        .then(function(data) {
+                            const format = tile.getFormat();
+                            const features = format.readFeatures(data);
+                            const scaleX = (extent[2] - extent[0]) / 4096;
+                            const scaleY = (extent[3] - extent[1]) / 4096;
 
-        objectsLayer.setStyle(function(feature, zoom) {
-            console.log("Styling feature at zoom", zoom, feature);
-            return new ol.style.Style({
-                stroke: new ol.style.Stroke({ color: '#ff3300', width: 2 }),
-                fill: new ol.style.Fill({ color: 'rgba(255,51,0,0.18)' }),
-                text: new ol.style.Text({
-                    text: feature.get && feature.get('name') ? feature.get('name') : '',
-                    offsetY: -12,
-                    fill: new ol.style.Fill({ color: '#fff' }),
-                    stroke: new ol.style.Stroke({ color: '#000', width: 2 })
-                })
-            });
+                            features.forEach(function(feature) {
+                                const geometry = feature && typeof feature.getGeometry === "function" ? feature.getGeometry() : null;
+                                if (!geometry || typeof geometry.scale !== "function" || typeof geometry.translate !== "function") {
+                                    return;
+                                }
+
+                                geometry.scale(scaleX, -scaleY, [0, 0]);
+                                geometry.translate(extent[0], extent[3]);
+                            });
+                            tile.setFeatures(features);
+                        })
+                        .catch(function(error) {
+                            console.warn("dcsMap: object tile loader failed", tile.getTileCoord(), error);
+                            tile.setFeatures([]);
+                        });
+                });
+            }
+        });
+
+        state.objectsSource = source;
+        objectsLayer.setSource(source);
+        source.on("tileloaderror", function(evt) {
+            const tile = evt.tile;
+            const coord = tile && tile.getTileCoord ? tile.getTileCoord() : null;
+            console.warn("dcsMap: object tile failed to decode", coord, evt);
         });
 
     } else {

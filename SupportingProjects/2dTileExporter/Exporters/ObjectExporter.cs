@@ -16,6 +16,7 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
     private int processed;
     private int totalTiles;
     private DateTime startTime;
+    private bool validatedSampleTile;
 
     private CoordConverter coordConverter = CoordConverter.CreateForMap(map.ToMapString());
 
@@ -44,15 +45,15 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
                     continue;
                 }
 
-                HashSet<(int tileX, int tileY)> tilesCoveredByObject = [];
-                foreach (var point in obj.Footprint)
+                var footprint = ProjectFootprint(obj.Footprint);
+                if (footprint.Count < 3)
                 {
-                    LatLong coord = coordConverter.LOtoLL(new() { X = point.X, Y = point.Z });
-                    int tileX = LonToTileX(coord.Lon, zoom);
-                    int tileY = LatToTileY(coord.Lat, zoom);
-                    var key = (tileX, tileY);
-                    tilesCoveredByObject.Add(key);
+                    invalid++;
+                    continue;
                 }
+
+                var bounds = GetBounds(footprint);
+                HashSet<(int tileX, int tileY)> tilesCoveredByObject = GetIntersectingTiles(bounds, zoom);
 
                 foreach (var tile in tilesCoveredByObject)
                 {
@@ -68,7 +69,11 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
                         tiles[tile] = value;
                     }
 
-                    value.Objects.Add(obj);
+                    value.Objects.Add(new TileObjectData
+                    {
+                        Object = obj,
+                        Footprint = footprint
+                    });
                 }
             }
 
@@ -89,18 +94,17 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
 
         foreach (var obj in tileData.Objects)
         {
-            List<Coordinate> ring = [];
-            foreach (var point in obj.Footprint!)
+            var clippedRing = ClipFootprintToTile(obj.Footprint, tileData, extent);
+            if (clippedRing.Count < 3)
             {
-                LatLong coord = coordConverter.LOtoLL(new() { X = point.X, Y = point.Z });
-
-                double normalizedX = (coord.Lon - tileData.MinLon) / (tileData.MaxLon - tileData.MinLon);
-                double normalizedY = (tileData.MaxLat - coord.Lat) / (tileData.MaxLat - tileData.MinLat);
-
-                int tileX = (int)Math.Clamp(normalizedX * extent, 0, (int)extent - 1);
-                int tileY = (int)Math.Clamp(normalizedY * extent, 0, (int)extent - 1);
-                ring.Add(new Coordinate(tileX, tileY));
+                continue;
             }
+
+            List<Coordinate> ring = clippedRing
+                .Select(point => new Coordinate(
+                    (int)Math.Clamp(Math.Round(point.X), 0, extent),
+                    (int)Math.Clamp(Math.Round(point.Y), 0, extent)))
+                .ToList();
 
             var fixedRing = ValidateAndFixRing(ring);
             if (fixedRing == null)
@@ -113,7 +117,7 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
                 Interlocked.Increment(ref ObjectId).ToString(),
                 geometry,
                 [
-                    new ("Type", obj.TypeName ?? string.Empty),
+                    new ("Type", obj.Object.TypeName ?? string.Empty),
                 ],
                 Tile.GeomType.Polygon,
                 extent
@@ -125,8 +129,17 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
         string outputPath = Path.Combine(outputDirectory, z.ToString(), x.ToString(), $"{y}.mvt");
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         List<VectorTileLayer> layers = [layer];
-        using FileStream fs = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        VectorTileEncoder.Encode(layers, fs);
+        using (FileStream fs = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            VectorTileEncoder.Encode(layers, fs);
+        }
+        
+
+        if (!validatedSampleTile && layer.VectorTileFeatures.Count > 0)
+        {
+            validatedSampleTile = true;
+            ValidateWrittenTile(outputPath, extent);
+        }
     }
 
     public static void CreateCoverageJson(string outputPath)
@@ -226,9 +239,10 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
             return null;
         }
 
-        // Normalize exterior ring winding in tile coordinate space.
-        // If this ends up inverted with your encoder, flip the comparison.
-        if (area > 0)
+        // MVT polygon rings use tile/screen coordinates where Y grows downward.
+        // In that coordinate system, a positive shoelace area is a clockwise
+        // exterior ring, which is what vector tiles expect for outers.
+        if (area < 0)
         {
             cleaned.Reverse();
 
@@ -241,6 +255,185 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
         }
 
         return cleaned;
+    }
+
+    private static void ValidateWrittenTile(string outputPath, uint extent)
+    {
+        using FileStream fileStream = File.OpenRead(outputPath);
+        List<VectorTileLayer> layers = VectorTileParser.Parse(fileStream);
+
+        foreach (var layer in layers)
+        {
+            foreach (var feature in layer.VectorTileFeatures.Where(x => x.GeometryType == Tile.GeomType.Polygon))
+            {
+                if (feature.Geometry.Count == 0)
+                {
+                    throw new InvalidDataException($"Polygon feature in '{outputPath}' has no rings.");
+                }
+
+                foreach (var ringSegment in feature.Geometry)
+                {
+                    Coordinate[] coords = ringSegment.ToArray();
+                    if (coords.Length < 4)
+                    {
+                        throw new InvalidDataException($"Polygon feature in '{outputPath}' has too few points.");
+                    }
+
+                    Coordinate first = coords[0];
+                    Coordinate last = coords[^1];
+                    if (first.X != last.X || first.Y != last.Y)
+                    {
+                        throw new InvalidDataException($"Polygon feature in '{outputPath}' is not closed.");
+                    }
+
+                    if (SignedArea(coords.ToList()) == 0)
+                    {
+                        throw new InvalidDataException($"Polygon feature in '{outputPath}' has zero area.");
+                    }
+
+                    foreach (var coord in coords)
+                    {
+                        if (coord.X < 0 || coord.X > extent || coord.Y < 0 || coord.Y > extent)
+                        {
+                            throw new InvalidDataException($"Polygon feature in '{outputPath}' has coordinates outside tile extent.");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static HashSet<(int tileX, int tileY)> GetIntersectingTiles(Bounds bounds, int zoom)
+    {
+        HashSet<(int tileX, int tileY)> tiles = [];
+        int maxIndex = (1 << zoom) - 1;
+
+        int minTileX = Math.Clamp(LonToTileX(bounds.MinLon, zoom), 0, maxIndex);
+        int maxTileX = Math.Clamp(LonToTileX(bounds.MaxLon, zoom), 0, maxIndex);
+        int topTileY = Math.Clamp(LatToTileY(bounds.MaxLat, zoom), 0, maxIndex);
+        int bottomTileY = Math.Clamp(LatToTileY(bounds.MinLat, zoom), 0, maxIndex);
+
+        for (int tileX = Math.Min(minTileX, maxTileX); tileX <= Math.Max(minTileX, maxTileX); tileX++)
+        {
+            for (int tileY = Math.Min(topTileY, bottomTileY); tileY <= Math.Max(topTileY, bottomTileY); tileY++)
+            {
+                Bounds tileBounds = new(
+                    TileXToLon(tileX, zoom),
+                    TileYToLat(tileY + 1, zoom),
+                    TileXToLon(tileX + 1, zoom),
+                    TileYToLat(tileY, zoom));
+
+                if (BoundsIntersect(bounds, tileBounds))
+                {
+                    tiles.Add((tileX, tileY));
+                }
+            }
+        }
+
+        return tiles;
+    }
+
+    private static bool BoundsIntersect(Bounds left, Bounds right)
+    {
+        return left.MinLon <= right.MaxLon
+            && left.MaxLon >= right.MinLon
+            && left.MinLat <= right.MaxLat
+            && left.MaxLat >= right.MinLat;
+    }
+
+    private static Bounds GetBounds(List<LatLong> footprint)
+    {
+        return new Bounds(
+            footprint.Min(point => point.Lon),
+            footprint.Min(point => point.Lat),
+            footprint.Max(point => point.Lon),
+            footprint.Max(point => point.Lat));
+    }
+
+    private List<LatLong> ProjectFootprint(IReadOnlyCollection<DcsPoint> footprint)
+    {
+        return footprint
+            .Select(point => coordConverter.LOtoLL(new() { X = point.X, Y = point.Z }))
+            .ToList();
+    }
+
+    private static List<TilePoint> ClipFootprintToTile(List<LatLong> footprint, TileData tileData, uint extent)
+    {
+        List<TilePoint> polygon = footprint
+            .Select(point => new TilePoint(
+                ((point.Lon - tileData.MinLon) / (tileData.MaxLon - tileData.MinLon)) * extent,
+                ((tileData.MaxLat - point.Lat) / (tileData.MaxLat - tileData.MinLat)) * extent))
+            .ToList();
+
+        polygon = ClipPolygonEdge(polygon, p => p.X >= 0, (a, b) => IntersectVertical(a, b, 0));
+        polygon = ClipPolygonEdge(polygon, p => p.X <= extent, (a, b) => IntersectVertical(a, b, extent));
+        polygon = ClipPolygonEdge(polygon, p => p.Y >= 0, (a, b) => IntersectHorizontal(a, b, 0));
+        polygon = ClipPolygonEdge(polygon, p => p.Y <= extent, (a, b) => IntersectHorizontal(a, b, extent));
+
+        return polygon;
+    }
+
+    private static List<TilePoint> ClipPolygonEdge(
+        List<TilePoint> input,
+        Func<TilePoint, bool> inside,
+        Func<TilePoint, TilePoint, TilePoint> intersect)
+    {
+        if (input.Count == 0)
+        {
+            return [];
+        }
+
+        List<TilePoint> output = [];
+        TilePoint previous = input[^1];
+        bool previousInside = inside(previous);
+
+        foreach (TilePoint current in input)
+        {
+            bool currentInside = inside(current);
+
+            if (currentInside)
+            {
+                if (!previousInside)
+                {
+                    output.Add(intersect(previous, current));
+                }
+
+                output.Add(current);
+            }
+            else if (previousInside)
+            {
+                output.Add(intersect(previous, current));
+            }
+
+            previous = current;
+            previousInside = currentInside;
+        }
+
+        return output;
+    }
+
+    private static TilePoint IntersectVertical(TilePoint a, TilePoint b, double x)
+    {
+        double dx = b.X - a.X;
+        if (dx == 0)
+        {
+            return new TilePoint(x, a.Y);
+        }
+
+        double t = (x - a.X) / dx;
+        return new TilePoint(x, a.Y + ((b.Y - a.Y) * t));
+    }
+
+    private static TilePoint IntersectHorizontal(TilePoint a, TilePoint b, double y)
+    {
+        double dy = b.Y - a.Y;
+        if (dy == 0)
+        {
+            return new TilePoint(a.X, y);
+        }
+
+        double t = (y - a.Y) / dy;
+        return new TilePoint(a.X + ((b.X - a.X) * t), y);
     }
 
 
@@ -264,6 +457,16 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
         public required double MinLon { get; set; }
         public required double MaxLat { get; set; }
         public required double MaxLon { get; set; }
-        public List<MapObject> Objects { get; set; } = [];
+        public List<TileObjectData> Objects { get; set; } = [];
     }
+
+    private sealed class TileObjectData
+    {
+        public required MapObject Object { get; init; }
+        public required List<LatLong> Footprint { get; init; }
+    }
+
+    private readonly record struct Bounds(double MinLon, double MinLat, double MaxLon, double MaxLat);
+
+    private readonly record struct TilePoint(double X, double Y);
 }

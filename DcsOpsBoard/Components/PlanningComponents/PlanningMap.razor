@@ -47,8 +47,12 @@
     };
 
     private object VectorTileSourceOptions = new
-    {   
-
+    {
+        MaxZoom = 17,
+        MinZoom = 12,
+        TileSize = 512,
+        WrapX = false,
+        Projection = "EPSG:3857"
     };
 
     private Task OnZoomChanged(double zoomLevel)
@@ -294,7 +298,7 @@
                 
                 <Layer @ref="_objectsLayer" Id="object-layer" 
                     SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
-                    MinZoom="14" MaxZoom="17"
+                    MinZoom="12" MaxZoom="17"
                     SourceOptions="VectorTileSourceOptions"
                     Style="@GetObjectLayerStyle()"
                     Visibility="true" />
