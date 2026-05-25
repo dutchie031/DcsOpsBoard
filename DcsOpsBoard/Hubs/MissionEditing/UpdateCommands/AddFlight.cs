@@ -1,32 +1,124 @@
 using System;
 using DcsMissionParser.Net;
+using DcsMissionParser.Net.CoordMapping;
+using DcsMissionParser.Net.Objects.Coalitions;
+using DcsMissionParser.Net.Objects.Coalitions.Countries;
+using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
+using DcsMissionParser.Net.Objects.Coalitions.Units.Plane;
+using DcsMissionParser.Net.Objects.Commons;
 using DcsOpsBoard.Database.Entities;
 using DcsOpsBoard.Services.MissionSync;
+using DcsOpsBoard.Types;
+using DcsOpsBoard.Types.Enums;
 using OpenLayers.Blazor;
 
 namespace DcsOpsBoard.Hubs.MissionEditing.UpdateCommands;
 
 public record AddFlight(
     Guid MissionId,
+    Guid MissionStateId,
     ulong UserId, 
     DateTime Timestamp,
-    string FlightName
+    string FlightName,
+    CoalitionSide Coalition,
+    PlaneType PlaneType,
+    PlaneTasking Tasking,
+    LatLong Position
 ) : IMissionCommand
 {
     public string CommandType => nameof(AddFlight);
 
-    public Task<CommandResult> CheckPermissions(List<Permission> missionPermissions)
+    public async Task<CommandResult> CheckPermissions(List<Permission> missionPermissions)
     {
-        throw new NotImplementedException();
+        return CommandResult.Success();
     }
 
-    public Task<CommandResult> ApplyToMission(DcsMission mission)
+    public async Task<CommandResult> ApplyToMission(DcsMission mission)
     {
-        throw new NotImplementedException();
+        Coalition? coalition = Coalition switch
+        {
+            CoalitionSide.Blue => mission.Coalitions.Blue,
+            CoalitionSide.Red => mission.Coalitions.Red,
+            CoalitionSide.Neutral => mission.Coalitions.Neutrals,
+            _ => null
+        };
+
+        int countryId = Coalition switch
+        {
+            CoalitionSide.Blue => (int)CountryCode.CJTF_BLUE,
+            CoalitionSide.Red => (int)CountryCode.CJTF_RED,
+            _ => (int)CountryCode.UN_PEACEKEEPERS
+        };
+
+        if(coalition == null)
+        {
+            return CommandResult.Failure("Invalid coalition specified");
+        }
+
+        if(mission.IsGroupNameExists(FlightName))
+        {
+            return CommandResult.Failure("A group with the same name already exists in the mission");
+        }
+
+        Country country = coalition.Countries.FirstOrDefault(x => x.Id == countryId);
+        if(country == null)
+        {
+            country = new Country
+            {
+                Id = countryId,
+                Name = ((CountryCode)countryId).ToString(),
+                Planes = new Planes()
+            };
+            coalition.Countries.Add(country);
+        }
+        
+        if(country.Planes.Groups.Any(x => x.GroupName == FlightName))
+        {
+            return CommandResult.Failure("A flight with the same name already exists in the specified coalition");
+        }
+
+        if(mission.Theatre == null)
+        {
+            return CommandResult.Failure("Mission theatre is required to add a flight");
+        }
+
+        if(mission.Theatre.ToMap() == Types.Map.Unknown)
+        {
+            return CommandResult.Failure("Unsupported mission theatre");
+        }
+
+        DcsCoord coord = mission.Theatre.ToMap().CoordConverter.LLtoLO(Position);
+;
+        PlaneGroup newGroup = new PlaneGroup
+        {
+            GroupName = FlightName,
+            IsDynamicSpawnTemplate = false,
+            IsHidden = false,
+            GroupId = mission.NextGroupId,
+            Uncontrolled = false,
+            Tasking = Tasking,
+            Modulation = Modulation.AM,
+            RadioSet = false,
+            StartTime = 0,
+            Route = new(),
+            Units = [
+                new ()
+                {
+                    Type = PlaneType,
+                    X = coord.X,
+                    Y = coord.Y,
+                    Name = $"{FlightName}-1",
+                    UnitId = mission.NextUnitId,
+                    Alt = 0,
+                    AltType = AltType.RADIO,
+                    Speed = 0,
+                    Skill = Skill.Client
+                }
+            ]
+        };
+
+        country.Planes.Groups.Add(newGroup);
+        return CommandResult.Success();
     }
 
-    public Task<CommandResult> ApplyToMissionMap(Map map)
-    {
-        throw new NotImplementedException();
-    }
 }
