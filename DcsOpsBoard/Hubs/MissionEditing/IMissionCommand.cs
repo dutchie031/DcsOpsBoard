@@ -18,4 +18,5 @@ public interface IMissionCommand
 
     public Task<CommandResult> CheckPermissions(List<Permission> missionPermissions);
     public Task<CommandResult> ApplyToMission(DcsMission mission);
+    public Task<CommandResult> RenderAsync(Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter);
 }

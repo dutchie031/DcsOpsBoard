@@ -7,6 +7,7 @@ using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
 using DcsMissionParser.Net.Objects.Coalitions.Units.Plane;
 using DcsMissionParser.Net.Objects.Commons;
 using DcsOpsBoard.Database.Entities;
+using DcsOpsBoard.Hubs.MissionEditing.UpdateCommands.DTO;
 using DcsOpsBoard.Services.MissionSync;
 using DcsOpsBoard.Types;
 using DcsOpsBoard.Types.Enums;
@@ -19,11 +20,7 @@ public record AddFlight(
     Guid MissionStateId,
     ulong UserId, 
     DateTime Timestamp,
-    string FlightName,
-    CoalitionSide Coalition,
-    PlaneType PlaneType,
-    PlaneTasking Tasking,
-    LatLong Position
+    AddFlightRequest Request
 ) : IMissionCommand
 {
     public string CommandType => nameof(AddFlight);
@@ -35,7 +32,7 @@ public record AddFlight(
 
     public async Task<CommandResult> ApplyToMission(DcsMission mission)
     {
-        Coalition? coalition = Coalition switch
+        Coalition? coalition = Request.Coalition switch
         {
             CoalitionSide.Blue => mission.Coalitions.Blue,
             CoalitionSide.Red => mission.Coalitions.Red,
@@ -43,7 +40,7 @@ public record AddFlight(
             _ => null
         };
 
-        int countryId = Coalition switch
+        int countryId = Request.Coalition switch
         {
             CoalitionSide.Blue => (int)CountryCode.CJTF_BLUE,
             CoalitionSide.Red => (int)CountryCode.CJTF_RED,
@@ -55,7 +52,7 @@ public record AddFlight(
             return CommandResult.Failure("Invalid coalition specified");
         }
 
-        if(mission.IsGroupNameExists(FlightName))
+        if(mission.IsGroupNameExists(Request.FlightName))
         {
             return CommandResult.Failure("A group with the same name already exists in the mission");
         }
@@ -72,7 +69,7 @@ public record AddFlight(
             coalition.Countries.Add(country);
         }
         
-        if(country.Planes.Groups.Any(x => x.GroupName == FlightName))
+        if(country.Planes.Groups.Any(x => x.GroupName == Request.FlightName))
         {
             return CommandResult.Failure("A flight with the same name already exists in the specified coalition");
         }
@@ -87,16 +84,16 @@ public record AddFlight(
             return CommandResult.Failure("Unsupported mission theatre");
         }
 
-        DcsCoord coord = mission.Theatre.ToMap().CoordConverter.LLtoLO(Position);
+        DcsCoord coord = mission.Theatre.ToMap().CoordConverter.LLtoLO(Request.Position);
 ;
         PlaneGroup newGroup = new PlaneGroup
         {
-            GroupName = FlightName,
+            GroupName = Request.FlightName,
             IsDynamicSpawnTemplate = false,
             IsHidden = false,
             GroupId = mission.NextGroupId,
             Uncontrolled = false,
-            Tasking = Tasking,
+            Tasking = Request.Tasking,
             Modulation = Modulation.AM,
             RadioSet = false,
             StartTime = 0,
@@ -104,10 +101,10 @@ public record AddFlight(
             Units = [
                 new ()
                 {
-                    Type = PlaneType,
+                    Type = Request.PlaneType,
                     X = coord.X,
                     Y = coord.Y,
-                    Name = $"{FlightName}-1",
+                    Name = $"{Request.FlightName}-1",
                     UnitId = mission.NextUnitId,
                     Alt = 0,
                     AltType = AltType.RADIO,
@@ -121,4 +118,9 @@ public record AddFlight(
         return CommandResult.Success();
     }
 
+    public async Task<CommandResult> RenderAsync(OpenLayers.Blazor.Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    {   
+        //TODO: IMPLEMENT
+        return CommandResult.Success();
+    }
 }

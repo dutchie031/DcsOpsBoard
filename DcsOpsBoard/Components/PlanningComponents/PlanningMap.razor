@@ -1,5 +1,7 @@
-﻿@using DcsMissionParser.Net.CoordMapping
+﻿@using DcsMissionParser.Net
+@using DcsMissionParser.Net.CoordMapping
 @using DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Tasks
+@using DcsOpsBoard.Components.Modals.Warnings
 @using DcsOpsBoard.Configuration
 @using DcsOpsBoard.Database.Entities
 @using DcsOpsBoard.Database.Services
@@ -8,6 +10,7 @@
 @using DcsOpsBoard.Hubs.MissionEditing
 @using DcsOpsBoard.Services
 @using DcsOpsBoard.Types
+@using Microsoft.AspNetCore.SignalR
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.JSInterop
 @using OpenLayers.Blazor
@@ -16,9 +19,11 @@
 
 @inject IMissionStorageManager MissionStorageManager
 @inject HubConnectionProvider<CursorHub> CursorHubProvider
+@inject HubConnectionProvider<MissionEditHub> MissionEditingHubProvider
 @inject IMissionSelectorService MissionSelectorService
 @inject IUserMapSettings UserMapSettings
 @inject IUserAuthenticationState AuthState
+@inject WarningService WarningService
 @inject IJSRuntime JS
 
 @code {
@@ -73,7 +78,7 @@
 
         await JS.InvokeVoidAsync("dcsMap.setActiveMap", _currentMission.Map.ToMapString());
 
-        
+        await JoinMission();
         await JoinCursorsHub();
         await InvokeAsync(StateHasChanged);
 
@@ -88,6 +93,48 @@
     }
 
 #region Mission Editor 
+
+    private Dictionary<Guid, Shape> _drawnShapes = [];
+
+    private async Task JoinMission()
+    {
+        if(_currentMission == null)
+        {
+            return;
+        }
+
+        await MissionEditingHubProvider.EnsureStartedAsync();
+
+        if(MissionEditingHubProvider.Connection.State != HubConnectionState.Connected)
+        {
+            await WarningService.ShowWarningAsync("No Connection established", "Could not establish a connection, editing this mission won't be synced", WarningSeverity.ERROR);
+            return;
+        }
+        
+        MissionEditingHubProvider.Connection.On<DcsMission>(MissionEditHub.OnFullUpdate, async (mission) =>
+        {
+            await HandleFullMissionUpdate(mission);
+        });
+
+        MissionEditingHubProvider.Connection.On<IMissionCommand>(MissionEditHub.OnMissionUpdate, async (command) =>
+        {
+            await HandleMissionUpdate(command);
+        });
+        
+        await MissionEditingHubProvider.Connection.SendAsync(MissionEditHub.JoinMethodName, _currentMission.MissionId);
+    }
+
+    private async Task HandleMissionUpdate(IMissionCommand command)
+    {
+        
+    }
+
+    private async Task HandleFullMissionUpdate(DcsMission mission)
+    {
+        
+        await InvokeAsync(StateHasChanged);
+    }
+    
 
 #endregion
 

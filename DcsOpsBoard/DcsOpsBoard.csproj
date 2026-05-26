@@ -14,9 +14,8 @@
     <Folder Include="Components\Modals\Warnings\" />
     <Folder Include="Configuration\" />
     <Folder Include="Controllers\" />
-    <Folder Include="Hubs/" />
-    <Folder Include="Hubs/MissionEditing/" />
     <Folder Include="Hubs/MissionEditing/UpdateCommands/" />
+    <Folder Include="Hubs/MissionEditing/UpdateCommands/DTO/" />
     <Folder Include="Hubs\HubModels\" />
     <Folder Include="Services\Discord\DTOs\" />
     <Folder Include="wwwroot\icons\" />

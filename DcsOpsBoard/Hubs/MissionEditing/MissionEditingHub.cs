@@ -7,6 +7,9 @@ namespace DcsOpsBoard.Hubs.MissionEditing;
 
 public class MissionEditHub : Hub, IBaseHub
 {
+    public static readonly string JoinMethodName = nameof(JoinMission);
+    public static readonly string OnFullUpdate = "MissionStateSync";
+    public static readonly string OnMissionUpdate = "ReceiveMissionUpdate";
     private readonly IMissionCache _cache;
     private readonly MissionCommandQueue _commandQueue;
 
@@ -47,15 +50,14 @@ public class MissionEditHub : Hub, IBaseHub
 
         // Send current mission state to new joiner
         var mission = await _cache.GetMission(missionId);
-        await Clients.Caller.SendAsync("MissionStateSync", mission);
+        await Clients.Caller.SendAsync(OnFullUpdate, mission);
     }
 
     public async Task RequestFullUpdate(Guid missionId)
     {
         var mission = await _cache.GetMission(missionId);
-        await Clients.Caller.SendAsync("MissionStateSync", mission);
+        await Clients.Caller.SendAsync(OnFullUpdate, mission);
     }
-
 
     public async Task SendCommand(IMissionCommand command)
     {
@@ -64,9 +66,12 @@ public class MissionEditHub : Hub, IBaseHub
         //Queue the command for processing and await the result
         var result = await _commandQueue.EnqueueCommand(command);
     
-        await Clients
-            .Group(MissionGroupName(command.MissionId))
-            .SendAsync("CommandResult", result);
+        // await Clients
+        //     .Group(MissionGroupName(command.MissionId))
+        //     .SendAsync("CommandResult", result);
+
+        await Clients.Group(MissionGroupName(command.MissionId))
+            .SendAsync(OnMissionUpdate, command);
 
     }
 

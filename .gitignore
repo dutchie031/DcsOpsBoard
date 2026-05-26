@@ -10,6 +10,8 @@ secret-inputs.json
 .db
 .missions
 
+.DS_Store
+
 **/*.lscache
 
 # User-specific files
