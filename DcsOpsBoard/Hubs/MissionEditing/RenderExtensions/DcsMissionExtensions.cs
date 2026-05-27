@@ -1,23 +1,42 @@
 using System;
 using DcsMissionParser.Net;
+using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
 using DcsOpsBoard.Database.Enums;
+using DcsOpsBoard.Types.Enums;
 using OpenLayers.Blazor;
 
 namespace DcsOpsBoard.Hubs.MissionEditing.RenderExtensions;
 
 public static class DcsMissionExtensions
 {
-    public static async Task RenderAsync(this DcsMission mission, RoleType role, Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    public static async Task RenderAsync(this DcsMission mission, RoleType role, List<string> ownedFlights, Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
     {
         if(mission == null)
         {
             return;
         }
 
+        if(mission.Coalitions.Blue != null)
+        {
+            foreach(PlaneGroup group in mission.Coalitions.Blue.Countries.SelectMany(x => x.Planes.Groups))
+            {
+                await group.RenderAsync(CoalitionSide.Blue, role, ownedFlights, map, renderCache, coordConverter);
+            }
+        }
+
+        if(mission.Coalitions.Red != null)
+        {
+            foreach(PlaneGroup group in mission.Coalitions.Red.Countries.SelectMany(x => x.Planes.Groups))
+            {
+                await group.RenderAsync(CoalitionSide.Red, role, ownedFlights, map, renderCache, coordConverter);
+            }
+        }
+
         if(mission.Drawings != null)
         {
             await mission.Drawings.RenderAsync(role, map, renderCache, coordConverter);
         }
+        
     }
 
     private static async Task RenderAsync(this DcsMissionParser.Net.Objects.Drawing.Drawings drawings, RoleType role, Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)

@@ -58,5 +58,5 @@ public class UserMapSettings : IUserMapSettings
             }
         }
     } = true;
-
+    
 }

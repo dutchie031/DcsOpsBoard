@@ -190,11 +190,27 @@
     {
         //Render the map, then render the mission afterwards.
         await InvokeAsync(StateHasChanged);
-
-        await mission.RenderAsync(_currentRoleInMission, _map, _drawnShapes, _currentMission!.Map.CoordConverter);
+        await mission.RenderAsync(_currentRoleInMission, [], _map, _drawnShapes, _currentMission!.Map.CoordConverter);
        
     }
     
+    public async Task SelectedShapeChanged(Shape shape)
+    {
+        if(shape == null)
+        {
+            return;
+        }
+        
+
+        shape.Properties.TryGetValue(MapConstants.ItemSelectableKey, out var selectableObj);
+        if (selectableObj is not bool selectable || !selectable)
+        {
+            shape.Layer.SelectedShape = null;
+            shape.Layer.UpdateLayer();
+            return;
+        }
+
+    }
 
 #endregion
 
@@ -368,6 +384,7 @@
             }
         };
     }
+
 }
 
 
@@ -376,8 +393,7 @@
     @if (_currentMission != null)
     {
         <Map
-            
-
+            EnableEditShapes
             OnPointerMove="OnPointerMove"
             @key="@($"map-{_currentMission.MissionId}")" 
             @ref="_map"
@@ -414,8 +430,23 @@
                 <Layer Id="@MapConstants.DrawingLayerId" 
                     LayerType="LayerType.Vector"
                     Options="@DrawingLayerOptions"
-                    
                     />
+
+                <Layer Id="@MapConstants.EditableFlightsLayerId" 
+                    LayerType="LayerType.Vector"
+                    Options="@DrawingLayerOptions"
+                    SelectionEnabled="true"
+                    SelectedShapeChanged="SelectedShapeChanged"
+                    />
+
+                <Layer Id="@MapConstants.NonEditableFlightsLayerId" 
+                    LayerType="LayerType.Vector"
+                    Options="@DrawingLayerOptions"
+                    />
+
+
+
+
                 <Layer @ref="_cursorLayer" Id="cursor-layer" LayerType="LayerType.Vector"
                        Visibility="@(UserMapSettings.ShowFriendlyCursors)" />
             </Layers>

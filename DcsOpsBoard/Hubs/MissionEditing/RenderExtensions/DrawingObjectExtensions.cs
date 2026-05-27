@@ -106,6 +106,7 @@ public static class DrawingObjectExtensions
         {
             poly.Fill = $"rgba({fillColor.R}, {fillColor.G}, {fillColor.B}, {fillColor.A.ToColorDoubleString()})";
         }
+
         await poly.UpdateShape();
     }
 }
