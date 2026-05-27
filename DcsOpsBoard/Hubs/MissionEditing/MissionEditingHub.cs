@@ -34,11 +34,11 @@ public class MissionEditHub : Hub, IBaseHub
         //Make sure it's not in another group
         if(_connectionMissions.TryGetValue(Context.ConnectionId, out Guid currentMissionId))
         {
-            if(currentMissionId == missionId)
-                return; // Already in the correct group
-            
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, 
-                MissionGroupName(currentMissionId));
+            if(currentMissionId != missionId)
+            {
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId,
+                    MissionGroupName(currentMissionId));
+            }
         }
 
         // Verify permissions
@@ -57,6 +57,12 @@ public class MissionEditHub : Hub, IBaseHub
     {
         var mission = await _cache.GetMission(missionId);
         await Clients.Caller.SendAsync(OnFullUpdate, mission);
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        _connectionMissions.TryRemove(Context.ConnectionId, out _);
+        return base.OnDisconnectedAsync(exception);
     }
 
     public async Task SendCommand(IMissionCommand command)

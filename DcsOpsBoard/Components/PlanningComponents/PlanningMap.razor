@@ -1,13 +1,17 @@
-﻿@using DcsMissionParser.Net
+﻿@using System.Text.Json
+@using DcsMissionParser.Net
 @using DcsMissionParser.Net.CoordMapping
 @using DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Tasks
 @using DcsOpsBoard.Components.Modals.Warnings
 @using DcsOpsBoard.Configuration
+@using DcsOpsBoard.Constants
 @using DcsOpsBoard.Database.Entities
+@using DcsOpsBoard.Database.Enums
 @using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Hubs
 @using DcsOpsBoard.Hubs.HubModels
 @using DcsOpsBoard.Hubs.MissionEditing
+@using DcsOpsBoard.Hubs.MissionEditing.RenderExtensions
 @using DcsOpsBoard.Services
 @using DcsOpsBoard.Types
 @using Microsoft.AspNetCore.SignalR
@@ -18,6 +22,7 @@
 @rendermode InteractiveServer
 
 @inject IMissionStorageManager MissionStorageManager
+@inject IPermissionManager PermissionsManager
 @inject HubConnectionProvider<CursorHub> CursorHubProvider
 @inject HubConnectionProvider<MissionEditHub> MissionEditingHubProvider
 @inject IMissionSelectorService MissionSelectorService
@@ -60,6 +65,12 @@
         Projection = "EPSG:3857"
     };
 
+    private object DrawingLayerOptions = new 
+    {
+        updateWhileAnimating = true,
+        updateWhileInteracting = true
+    };
+
     private Task OnZoomChanged(double zoomLevel)
     {
         return Task.CompletedTask;
@@ -95,12 +106,32 @@
 #region Mission Editor 
 
     private Dictionary<Guid, Shape> _drawnShapes = [];
+    private RoleType _currentRoleInMission = RoleType.Unknown;
 
+    private bool _missionEventHandlersRegistered = false;
     private async Task JoinMission()
     {
         if(_currentMission == null)
         {
             return;
+        }
+
+        await AuthState.EnsureLoaded();
+
+        if(!AuthState.IsAuthenticated || AuthState.DiscordId is null)
+        {
+            await WarningService.ShowWarningAsync("Not authenticated", "You need to be authenticated to edit this mission", WarningSeverity.ERROR);
+            return;
+        }
+
+        var permissions = PermissionsManager.GetPermissionsForMission(_currentMission.MissionId, AuthState.DiscordId).Select(x => x.Role);
+        if(_currentMission.OwnerId != AuthState.DiscordId)
+        {
+            _currentRoleInMission = permissions.GetHighestRole();
+        }
+        else
+        {
+            _currentRoleInMission = RoleType.Admin;
         }
 
         await MissionEditingHubProvider.EnsureStartedAsync();
@@ -110,16 +141,42 @@
             await WarningService.ShowWarningAsync("No Connection established", "Could not establish a connection, editing this mission won't be synced", WarningSeverity.ERROR);
             return;
         }
-        
-        MissionEditingHubProvider.Connection.On<DcsMission>(MissionEditHub.OnFullUpdate, async (mission) =>
-        {
-            await HandleFullMissionUpdate(mission);
-        });
 
-        MissionEditingHubProvider.Connection.On<IMissionCommand>(MissionEditHub.OnMissionUpdate, async (command) =>
+        if(_missionEventHandlersRegistered == false)
         {
-            await HandleMissionUpdate(command);
-        });
+            MissionEditingHubProvider.Connection.On<JsonElement>(MissionEditHub.OnFullUpdate, async (payload) =>
+            {
+                try
+                {
+                    var mission = payload.Deserialize<DcsMission>(new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (mission == null)
+                    {
+                        Console.WriteLine("MissionStateSync received but deserialized mission is null.");
+                        return;
+                    }
+
+                    await HandleFullMissionUpdate(mission);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"MissionStateSync deserialize failed: {ex}");
+                    Console.WriteLine($"MissionStateSync payload: {payload.GetRawText()}");
+                }
+            });
+
+            MissionEditingHubProvider.Connection.On<IMissionCommand>(MissionEditHub.OnMissionUpdate, async (command) =>
+            {
+                await HandleMissionUpdate(command);
+            });
+
+            _missionEventHandlersRegistered = true;
+        }
+        
+      
         
         await MissionEditingHubProvider.Connection.SendAsync(MissionEditHub.JoinMethodName, _currentMission.MissionId);
     }
@@ -131,8 +188,11 @@
 
     private async Task HandleFullMissionUpdate(DcsMission mission)
     {
-        
+        //Render the map, then render the mission afterwards.
         await InvokeAsync(StateHasChanged);
+
+        await mission.RenderAsync(_currentRoleInMission, _map, _drawnShapes, _currentMission!.Map.CoordConverter);
+       
     }
     
 
@@ -350,6 +410,12 @@
                     Style="@GetObjectLayerStyle()"
                     Visibility="true" />
 
+                <Layer Id="@MapConstants.DrawingLayerId" 
+                    LayerType="LayerType.Vector"
+                    Options="@DrawingLayerOptions"
+                    />
+objectsLayer.set("updateWhileAnimating", true);
+        objectsLayer.set("updateWhileInteracting", true);
                 <Layer @ref="_cursorLayer" Id="cursor-layer" LayerType="LayerType.Vector"
                        Visibility="@(UserMapSettings.ShowFriendlyCursors)" />
             </Layers>

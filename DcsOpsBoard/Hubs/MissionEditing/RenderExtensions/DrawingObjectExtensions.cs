@@ -49,15 +49,18 @@ public static class DrawingObjectExtensions
         line.Points = [.. obj.Points.Select(
             p =>
             {
-                var converted = coordConverter.LOtoLL(new DcsCoord { X = p.X, Y = p.Y });
+                DcsCoord coord = new() { X = obj.MapX+p.X, Y = obj.MapY+p.Y };
+                var converted = coordConverter.LOtoLL(coord);
                 return new Coordinate(converted.Lon, converted.Lat);
             }
         )];
 
         if(DcsColorConverter.TryFromDcsStringColor(obj.ColorString, out System.Drawing.Color lineColor))
         {
-            line.Stroke = $"rgba({lineColor.R}, {lineColor.G}, {lineColor.B}, {lineColor.A.ToColorDouble()})";
+            line.Stroke = $"rgba({lineColor.R}, {lineColor.G}, {lineColor.B}, {lineColor.A.ToColorDoubleString()})";
         }
+
+        line.StrokeThickness = obj.Thickness;
                
         await line.UpdateShape();
     }
@@ -93,15 +96,15 @@ public static class DrawingObjectExtensions
                 return new Coordinate(converted.Lon, converted.Lat);
             }
         )];
-
+        
         if(DcsColorConverter.TryFromDcsStringColor(obj.ColorString, out System.Drawing.Color lineColor))
         {
-            poly.Stroke = $"rgba({lineColor.R}, {lineColor.G}, {lineColor.B}, {lineColor.A.ToColorDouble()})";
+            poly.Stroke = $"rgba({lineColor.R}, {lineColor.G}, {lineColor.B}, {lineColor.A.ToColorDoubleString()})";
         }
 
         if(DcsColorConverter.TryFromDcsStringColor(obj.FillColorString, out System.Drawing.Color fillColor))
         {
-            poly.Fill = $"rgba({fillColor.R}, {fillColor.G}, {fillColor.B}, {fillColor.A.ToColorDouble()})";
+            poly.Fill = $"rgba({fillColor.R}, {fillColor.G}, {fillColor.B}, {fillColor.A.ToColorDoubleString()})";
         }
         await poly.UpdateShape();
     }
