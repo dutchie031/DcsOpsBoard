@@ -368,7 +368,6 @@
             }
         };
     }
-
 }
 
 
@@ -377,6 +376,8 @@
     @if (_currentMission != null)
     {
         <Map
+            
+
             OnPointerMove="OnPointerMove"
             @key="@($"map-{_currentMission.MissionId}")" 
             @ref="_map"
@@ -413,12 +414,12 @@
                 <Layer Id="@MapConstants.DrawingLayerId" 
                     LayerType="LayerType.Vector"
                     Options="@DrawingLayerOptions"
+                    
                     />
-objectsLayer.set("updateWhileAnimating", true);
-        objectsLayer.set("updateWhileInteracting", true);
                 <Layer @ref="_cursorLayer" Id="cursor-layer" LayerType="LayerType.Vector"
                        Visibility="@(UserMapSettings.ShowFriendlyCursors)" />
             </Layers>
+            
         </Map>
     }
     else
