@@ -7,6 +7,7 @@ public interface IUserMapSettings
     bool ShowElevationShader { get; set; }
     bool ShowFriendlyCursors { get; set; }
     bool ShowMyCursor { get; set; }
+    bool ShowDrawingLayer { get; set; }
     event Action OnSettingsChanged;
 }
 
@@ -59,4 +60,17 @@ public class UserMapSettings : IUserMapSettings
         }
     } = true;
     
+    public bool ShowDrawingLayer
+    {
+        get;
+        set
+        {
+            if(field != value)
+            {
+                field = value;
+                NotifySettingsChanged();
+            }
+        }
+    } = true;
+
 }

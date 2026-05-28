@@ -9,8 +9,11 @@ namespace DcsOpsBoard.MissionEditing;
 public class MissionEditHub : Hub, IBaseHub
 {
     public static readonly string JoinMethodName = nameof(JoinMission);
+    public static readonly string SendMissionCommandMethodName = nameof(SendCommand);
     public static readonly string OnFullUpdate = "MissionStateSync";
     public static readonly string OnMissionUpdate = "ReceiveMissionUpdate";
+
+    
     private readonly IMissionCache _cache;
     private readonly MissionCommandQueue _commandQueue;
 

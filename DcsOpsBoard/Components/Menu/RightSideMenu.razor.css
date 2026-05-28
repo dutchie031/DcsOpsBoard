@@ -27,14 +27,18 @@
 }
 
 .right-menu-grouping {
+    padding-top: 0.5em;
     padding-bottom: 0.5em;
     border-bottom: 1px solid #374055;
-    margin-bottom: 0.5em;
 }
 
 .right-menu-content {
     flex-shrink: 0;
     align-items: center;
+}
+
+.h-20 {
+    height: 20% !important;
 }
 
 .right-menu-icon {

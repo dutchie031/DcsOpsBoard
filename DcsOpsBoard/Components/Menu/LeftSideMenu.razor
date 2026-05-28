@@ -1,0 +1,32 @@
+﻿@using DcsMissionParser.Net
+@using DcsOpsBoard.Database.Entities
+@using DcsOpsBoard.Services
+
+@rendermode InteractiveServer
+
+
+@inject IMissionSelectorService MissionSelectorService
+
+@code {
+
+
+    private DcsMission? CurrentMission;
+    private OpsPlanningMission? CurrentMissionData;
+
+    protected override void OnInitialized()
+    {
+        MissionSelectorService.OnMissionSelected += MissionChanged;
+        base.OnInitialized();
+    }
+
+    private async Task MissionChanged(OpsPlanningMission mission)
+    {
+        CurrentMissionData = mission;
+        await InvokeAsync(StateHasChanged);
+    }
+    
+
+
+
+}
+

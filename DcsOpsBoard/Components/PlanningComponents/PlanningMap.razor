@@ -11,6 +11,7 @@
 @using DcsOpsBoard.Database.Enums
 @using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Hubs
+@using DcsOpsBoard.Hubs.Clients
 @using DcsOpsBoard.Hubs.HubModels
 @using DcsOpsBoard.MissionEditing
 @using DcsOpsBoard.MissionEditing.RenderExtensions
@@ -27,18 +28,15 @@
 
 @implements IDisposable
 
-@inject IMissionStorageManager MissionStorageManager
-@inject IPermissionManager PermissionsManager
+@inject IMissionEditingClient MissionEditingClient
 @inject HubConnectionProvider<CursorHub> CursorHubProvider
-@inject HubConnectionProvider<MissionEditHub> MissionEditingHubProvider
-@inject IMissionSelectorService MissionSelectorService
 @inject IUserMapSettings UserMapSettings
 @inject IUserAuthenticationState AuthState
 @inject WarningService WarningService
 @inject IJSRuntime JS
 
 @code {
-    private OpsPlanningMission? _currentMission;
+
     private OpenLayers.Blazor.Map _map = null!;
     private Layer _extentLayer = null!;
     private Layer? _baseLayer;
@@ -88,8 +86,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        MissionSelectorService.OnMissionSelected += SetCurrentMission;
-
+        MissionEditingClient.OnMissionChanged += MissionChanged;
+        MissionEditingClient.OnMissionReceived += MissionEditingClient_OnMissionReceived;
         _cursorHelper = new CursorHelper
         {
             AuthState = AuthState,
@@ -97,23 +95,30 @@
             UserMapSettings = UserMapSettings,
             CursorLayer = _cursorLayer
         };
-
     }
 
-    private bool _pendingLimitsUpdate = false;
-    public async Task SetCurrentMission(OpsPlanningMission mission)
+    public async Task MissionChanged()
     {
-        _currentMission = mission;
-        _pendingLimitsUpdate = true;
 
-        await JS.InvokeVoidAsync("dcsMap.setActiveMap", _currentMission.Map.ToMapString());
+        await JS.InvokeVoidAsync("dcsMap.setActiveMap", MissionEditingClient.CurrentMissionData?.Map.ToMapString());
 
         _renderState.Clear();
 
-        await JoinMission();
-        await _cursorHelper.JoinCursorsHub(_currentMission.MissionId);
+        await _cursorHelper.JoinCursorsHub(MissionEditingClient.CurrentMissionData?.MissionId ?? Guid.Empty);
         await InvokeAsync(StateHasChanged);
 
+        _cursorHelper.CursorLayer = _cursorLayer;
+
+    }
+
+    public async Task MissionEditingClient_OnMissionReceived()
+    {
+        await InvokeAsync(StateHasChanged);
+        if(MissionEditingClient.CurrentMissionData != null && MissionEditingClient.CurrentMission != null)
+        {
+            await MissionEditingClient.CurrentMission.RenderAsync(MissionEditingClient.CurrentRoleInMission, [], _map, _renderState, MissionEditingClient.CurrentMissionData.Map.CoordConverter);
+        }
+       
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -142,92 +147,10 @@
     }
 
     private Dictionary<Guid, Shape> _drawnShapes = [];
-    private RoleType _currentRoleInMission = RoleType.Unknown;
-
-    private bool _missionEventHandlersRegistered = false;
-    private async Task JoinMission()
-    {
-        if(_currentMission == null)
-        {
-            return;
-        }
-
-        await AuthState.EnsureLoaded();
-
-        if(!AuthState.IsAuthenticated || AuthState.DiscordId is null)
-        {
-            await WarningService.ShowWarningAsync("Not authenticated", "You need to be authenticated to edit this mission", WarningSeverity.ERROR);
-            return;
-        }
-
-        var permissions = PermissionsManager.GetPermissionsForMission(_currentMission.MissionId, AuthState.DiscordId).Select(x => x.Role);
-        if(_currentMission.OwnerId != AuthState.DiscordId)
-        {
-            _currentRoleInMission = permissions.GetHighestRole();
-        }
-        else
-        {
-            _currentRoleInMission = RoleType.Admin;
-        }
-
-        await MissionEditingHubProvider.EnsureStartedAsync();
-
-        if(MissionEditingHubProvider.Connection.State != HubConnectionState.Connected)
-        {
-            await WarningService.ShowWarningAsync("No Connection established", "Could not establish a connection, editing this mission won't be synced", WarningSeverity.ERROR);
-            return;
-        }
-
-        if(_missionEventHandlersRegistered == false)
-        {
-            MissionEditingHubProvider.Connection.On<JsonElement>(MissionEditHub.OnFullUpdate, async (payload) =>
-            {
-                try
-                {
-                    var mission = payload.Deserialize<DcsMission>(new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
-
-                    if (mission == null)
-                    {
-                        Console.WriteLine("MissionStateSync received but deserialized mission is null.");
-                        return;
-                    }
-
-                    await HandleFullMissionUpdate(mission);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"MissionStateSync deserialize failed: {ex}");
-                    Console.WriteLine($"MissionStateSync payload: {payload.GetRawText()}");
-                }
-            });
-
-            MissionEditingHubProvider.Connection.On<IMissionCommand>(MissionEditHub.OnMissionUpdate, async (command) =>
-            {
-                await HandleMissionUpdate(command);
-            });
-
-            _missionEventHandlersRegistered = true;
-        }
-        
-      
-        
-        await MissionEditingHubProvider.Connection.SendAsync(MissionEditHub.JoinMethodName, _currentMission.MissionId);
-    }
-
+    
     private async Task HandleMissionUpdate(IMissionCommand command)
     {
         
-    }
-
-    private async Task HandleFullMissionUpdate(DcsMission mission)
-    {
-        //Render the map, then render the mission afterwards.
-        await InvokeAsync(StateHasChanged);
-        await mission.RenderAsync(_currentRoleInMission, [], _map, _renderState, _currentMission!.Map.CoordConverter);
-       
     }
     
     public async Task SelectedShapeChanged(Shape shape)
@@ -287,7 +210,7 @@
                     
                     if(changedPoint != null)
                     {
-                        var coordConverter = _currentMission!.Map.CoordConverter;
+                        var coordConverter = MissionEditingClient.CurrentMissionData!.Map.CoordConverter;
                         DcsCoord dcsCoord = coordConverter.LLtoLO(new LatLong{ Lat = lat, Lon = lon });
                         changedPoint.X = dcsCoord.X;
                         changedPoint.Y = dcsCoord.Y;
@@ -295,7 +218,7 @@
                         // Update local only by redrawing the entire flight.
                         if(_renderState.TryGetFlightCoalition(flightId, out CoalitionSide coalition))
                         {
-                            await flight.RenderAsync(coalition, _currentRoleInMission, [], _map, _renderState, _currentMission.Map.CoordConverter);
+                            await flight.RenderAsync(coalition, MissionEditingClient.CurrentRoleInMission, [], _map, _renderState, MissionEditingClient.CurrentMissionData!.Map.CoordConverter);
                         }
                     }
                 }
@@ -308,11 +231,11 @@
 
     public Extent GetExtent()
     {
-        if(_currentMission == null )
+        if(MissionEditingClient.CurrentMissionData == null )
         {
             return null;
         }
-        var limits = _currentMission.Map.Limits;
+        var limits = MissionEditingClient.CurrentMissionData.Map.Limits;
         return new Extent(
             limits.BottomLeft.Lon,
             limits.BottomLeft.Lat,
@@ -337,7 +260,6 @@
     
     public void Dispose()
     {
-        MissionSelectorService.OnMissionSelected -= SetCurrentMission;
         UserMapSettings.OnSettingsChanged -= StateHasChanged;
         _dotNetRef?.Dispose();
     }
@@ -346,37 +268,36 @@
     {
         await _cursorHelper.SignalPointerMove(coordinate);
     }
-
 }
 
 <div class="map-container">
-    @if (_currentMission != null)
+    @if (MissionEditingClient.CurrentMissionData != null)
     {
         <Map
             OnPointerMove="OnPointerMove"
-            @key="@($"map-{_currentMission.MissionId}")" 
+            @key="@($"map-{MissionEditingClient.CurrentMissionData.MissionId}")" 
             @ref="_map"
-            style=@($"height: 100%; width: 100%; z-index: 0; {(_currentMission == null ? "display:none;" :
-                                  "")}") ZoomChanged="OnZoomChanged" MaxZoom="_currentMission!.Map.MaxZoom" MinZoom="_currentMission.Map.MinZoom"
+            style=@($"height: 100%; width: 100%; z-index: 0; {(MissionEditingClient.CurrentMissionData == null ? "display:none;" :
+                                  "")}") ZoomChanged="OnZoomChanged" MaxZoom="@(MissionEditingClient.CurrentMissionData!.Map.MaxZoom)" MinZoom="@(MissionEditingClient.CurrentMissionData!.Map.MinZoom)"
              ConfigureJsMethod="dcsMap.configureMap">
             <Layers>
 
                 <Layer @ref="_extentLayer" Extent="@GetExtent()" Opacity="0"/>
 
-                @* <Layer @key="@(_currentMission?.MissionId)"
+                <Layer @key="@($"base-layer-{MissionEditingClient.CurrentMissionData.MissionId}")"
                         @ref="_baseLayer" Id="base-layer" 
                         Visibility="true"
                         SourceType="SourceType.XYZ" 
                         SourceOptions="BaseTileSourceOptions"
-                       Url=@($"/api/tiles/{_currentMission?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") Format="image/webp" /> *@
+                       Url=@($"/api/tiles/{MissionEditingClient.CurrentMissionData.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") Format="image/webp" />
 
                 @* Detailed layer is loaded dynamically via JS to avoid unnecessary tile loading *@
-                @* <Layer @ref="_detailedLayer" Id="detailed-layer" SourceType="SourceType.XYZ"
+                <Layer @ref="_detailedLayer" Id="detailed-layer" SourceType="SourceType.XYZ"
                        SourceOptions="DetailedTileSourceOptions" MinZoom="15" Format="image/webp" />
 
                 <Layer @ref="_shaderLayer" Id="shader-layer" SourceOptions="ShaderTileSourceOptions"
                        Visibility="@(UserMapSettings.ShowElevationShader)"
-                       Url=@($"/api/shaders/{_currentMission?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") MinZoom="6"
+                       Url=@($"/api/shaders/{MissionEditingClient.CurrentMissionData.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") MinZoom="6"
                        SourceType="SourceType.XYZ" Opacity="0.20" Format="image/webp" />
                 
                 <Layer @ref="_objectsLayer" Id="object-layer" 
@@ -384,11 +305,12 @@
                     MinZoom="12" MaxZoom="17"
                     SourceOptions="VectorTileSourceOptions"
                     Style="@GetObjectLayerStyle()"
-                    Visibility="true" /> *@
+                    Visibility="true" />
 
                 <Layer Id="@MapConstants.DrawingLayerId" 
                     LayerType="LayerType.Vector"
                     Options="@DrawingLayerOptions"
+                    Visibility="@(UserMapSettings.ShowDrawingLayer)"
                     />
 
                 <Layer Id="@MapConstants.EditableFlightsLayerId" 

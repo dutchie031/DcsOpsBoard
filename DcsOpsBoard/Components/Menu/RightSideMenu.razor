@@ -21,27 +21,44 @@
     {
         UserMapSettings.ShowFriendlyCursors = !UserMapSettings.ShowFriendlyCursors;
     }
+
+    private void ToggleDrawingLayer()
+    {
+        UserMapSettings.ShowDrawingLayer = !UserMapSettings.ShowDrawingLayer;
+    }
+
 }
 
 <div id="right-menu-body">
-    <div class=right-menu-grouping>
-        <div class="right-menu-item">
-            <div class="right-menu-icon @(UserMapSettings.ShowFriendlyCursors ? "selected" : "")" @onclick="ToggleCursors">
-                <i class="bi bi-cursor"></i>
-            </div>
-            <div class="right-menu-content">
-                <span>Friendly Cursors</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="right-menu-grouping">
+    <div class="right-menu-grouping h-25">
         <div class="right-menu-item">
             <div class="right-menu-icon @(UserMapSettings.ShowElevationShader ? "selected" : "")" @onclick="ToggleElevationData">
                 <i class="icon-l icon-mountain"></i>
             </div>
             <div class="right-menu-content">
                 <span>Elevation Data</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="right-menu-grouping h-50">
+         <div class="right-menu-item">
+            <div class="right-menu-icon @(UserMapSettings.ShowDrawingLayer ? "selected" : "")" @onclick="ToggleDrawingLayer">
+                <i class="bi bi-brush"></i>
+            </div>
+            <div class="right-menu-content">
+                <span>Drawing Layer</span>
+            </div>
+        </div>
+    </div>
+
+     <div class="right-menu-grouping h-20">
+       <div class="right-menu-item">
+            <div class="right-menu-icon @(UserMapSettings.ShowFriendlyCursors ? "selected" : "")" @onclick="ToggleCursors">
+                <i class="bi bi-cursor"></i>
+            </div>
+            <div class="right-menu-content">
+                <span>Friendly Cursors</span>
             </div>
         </div>
     </div>

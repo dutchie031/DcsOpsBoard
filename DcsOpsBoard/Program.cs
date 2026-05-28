@@ -7,6 +7,7 @@ using DcsOpsBoard.Components.Modals.Warnings;
 using DcsOpsBoard.Configuration;
 using DcsOpsBoard.Database;
 using DcsOpsBoard.Hubs;
+using DcsOpsBoard.Hubs.Clients;
 using DcsOpsBoard.Hubs.MissionSync;
 using DcsOpsBoard.MissionEditing;
 using DcsOpsBoard.Services;
@@ -45,6 +46,7 @@ builder.Services.AddSingleton<MissionCommandQueue>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<MissionCommandQueue>());
 
 builder.Services.AddScoped<HubConnectionProvider<CursorHub>>();
+builder.Services.AddScoped<IMissionEditingClient, MissionEditingClient>();
 builder.Services.AddScoped<HubConnectionProvider<MissionEditHub>>();
 
 // Add services to the container.

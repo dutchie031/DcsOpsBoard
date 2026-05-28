@@ -39,6 +39,7 @@ public class MissionRenderState
      
     public void Clear()
     {
+        _drawnShapes.FirstOrDefault().Value?.Map?.ShapesList.Clear();
         _drawnShapes.Clear();
         _drawnFlights.Clear();
         _flightCoalitions.Clear();

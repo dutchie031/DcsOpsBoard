@@ -16,7 +16,7 @@ public class CursorHelper
     public required IUserAuthenticationState AuthState { get; init; }
     public required HubConnectionProvider<CursorHub> CursorHubProvider { get; init; }
     public required IUserMapSettings UserMapSettings { get; init; }
-    public required Layer CursorLayer { get; init; }
+    public required Layer? CursorLayer { get; set; }
     private readonly Dictionary<string, Shape> _cursorShapes = [];
     
     private Guid _missionId = Guid.Empty;    
@@ -55,8 +55,7 @@ public class CursorHelper
                 _ = UpdateCursor(data);
             });
             _registeredCursorHandler = true;
-        }
-        ;
+        };
 
         await CursorHubProvider.Connection.SendAsync(CursorHub.JoinCursorGroupMethodName, _missionId, AuthState.DiscordId);
     }
@@ -80,7 +79,7 @@ public class CursorHelper
                     {
                         Circle = new StyleOptions.CircleStyleOptions
                         {
-                            Radius = 10,
+                            Radius = 16,
                             Fill = new StyleOptions.FillOptions
                             {
                                 Color = "#222430"
@@ -102,8 +101,8 @@ public class CursorHelper
                             AnchorYUnits = StyleOptions.IconAnchorUnits.Fraction,
                             Anchor = new double[] { 0.5, 0.5 },
                             Opacity = 1,
-                            Width = 16,
-                            Height = 16,
+                            Width = 28,
+                            Height = 28,
                             Source = data.AvatarUrl,
                         }
                     }
@@ -122,7 +121,7 @@ public class CursorHelper
     }
 
     private DateTime _lastPointerSent= DateTime.MinValue;
-    private readonly TimeSpan PointerUpdateInterval = TimeSpan.FromMilliseconds(100);
+    private readonly TimeSpan PointerUpdateInterval = TimeSpan.FromMilliseconds(50);
     
     public async Task SignalPointerMove(Coordinate coordinate) 
     {

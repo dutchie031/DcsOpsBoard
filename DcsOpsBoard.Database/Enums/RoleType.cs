@@ -32,4 +32,5 @@ public static class RoleTypeExtensions
 
         return bestRole;
     }
+
 }
