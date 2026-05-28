@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Concurrent;
+using DcsOpsBoard.Hubs;
 using DcsOpsBoard.Hubs.MissionSync;
 using Microsoft.AspNetCore.SignalR;
 
-namespace DcsOpsBoard.Hubs.MissionEditing;
+namespace DcsOpsBoard.MissionEditing;
 
 public class MissionEditHub : Hub, IBaseHub
 {

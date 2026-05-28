@@ -7,13 +7,13 @@ using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
 using DcsMissionParser.Net.Objects.Coalitions.Units.Plane;
 using DcsMissionParser.Net.Objects.Commons;
 using DcsOpsBoard.Database.Entities;
-using DcsOpsBoard.Hubs.MissionEditing.UpdateCommands.DTO;
+using DcsOpsBoard.MissionEditing.UpdateCommands.DTO;
 using DcsOpsBoard.Services.MissionSync;
 using DcsOpsBoard.Types;
 using DcsOpsBoard.Types.Enums;
 using OpenLayers.Blazor;
 
-namespace DcsOpsBoard.Hubs.MissionEditing.UpdateCommands;
+namespace DcsOpsBoard.MissionEditing.UpdateCommands;
 
 public record AddFlight(
     Guid MissionId,

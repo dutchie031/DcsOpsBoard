@@ -5,7 +5,7 @@ using DcsOpsBoard.Hubs.MissionSync;
 using DcsOpsBoard.Services.MissionSync;
 using OpenLayers.Blazor;
 
-namespace DcsOpsBoard.Hubs.MissionEditing;
+namespace DcsOpsBoard.MissionEditing;
 
 public interface IMissionCommand
 {

@@ -3,10 +3,11 @@ using System.Collections.Concurrent;
 using DcsOpsBoard.Database.Entities;
 using DcsOpsBoard.Database.Enums;
 using DcsOpsBoard.Database.Services;
+using DcsOpsBoard.Hubs;
 using DcsOpsBoard.Hubs.HubModels;
 using Microsoft.AspNetCore.SignalR;
 
-namespace DcsOpsBoard.Hubs.MissionEditing;
+namespace DcsOpsBoard.MissionEditing;
 
 public class CursorHub : Hub, IBaseHub
 {

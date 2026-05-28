@@ -9,12 +9,13 @@ using Route = DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Route;
 using Point = DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Point;
 using DcsMissionParser.Net.Objects.Coalitions.Units.Plane;
 using DcsMissionParser.Net.CoordMapping;
+using DcsOpsBoard.Components.PlanningComponents.HelperClasses;
 
-namespace DcsOpsBoard.Hubs.MissionEditing.RenderExtensions;
+namespace DcsOpsBoard.MissionEditing.RenderExtensions;
 
 public static class FlightExtensions
 {
-    public static async Task RenderAsync(this PlaneGroup group, CoalitionSide side, RoleType role, List<string> ownedFlights, OpenLayers.Blazor.Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    public static async Task RenderAsync(this PlaneGroup group, CoalitionSide side, RoleType role, List<string> ownedFlights, OpenLayers.Blazor.Map map, MissionRenderState renderState, CoordConverter coordConverter)
     {
         
         Layer? nonEditableLayer = map.LayersList.FirstOrDefault(l => l.Id == MapConstants.NonEditableFlightsLayerId);
@@ -29,23 +30,25 @@ public static class FlightExtensions
         {
             return;
         }
+
+        renderState.AddFlight(group.RefId, group, side);
         
 
         //Render: Units as SVG files. 
 
         //Render: Route as a line 
-        await group.Route.RenderAsync(group.RefId, side, role, ownedFlights.Contains(group.GroupName), nonEditableLayer, renderCache, coordConverter);
+        await group.Route.RenderAsync(group.RefId, side, role, ownedFlights.Contains(group.GroupName), nonEditableLayer, renderState, coordConverter);
 
         //Render: Each waypoint as a point with the waypoint number. (this should be draggable)
         foreach(Point waypoint in group.Route.Points)
         {
-            await waypoint.RenderAsync(group.RefId, side, role, ownedFlights.Contains(group.GroupName), editableLayer, renderCache, coordConverter);
+            await waypoint.RenderAsync(group.RefId, side, role, ownedFlights.Contains(group.GroupName), editableLayer, renderState, coordConverter);
         }        
     }
 
-    private static async Task RenderAsync(this Route route, Guid flightId,  CoalitionSide side, RoleType role, bool editable, Layer layer, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    private static async Task RenderAsync(this Route route, Guid flightId,  CoalitionSide side, RoleType role, bool editable, Layer layer, MissionRenderState renderState, CoordConverter coordConverter)
     {
-        if(!renderCache.TryGetValue(route.RefId, out Shape? cachedShape))
+        if(!renderState.TryGetShape(route.RefId, out Shape? cachedShape))
         {
             if (layer is null)
             {
@@ -55,7 +58,7 @@ public static class FlightExtensions
 
             //No cached shape, create a new one and add it to the cache.
             cachedShape = new OpenLayers.Blazor.Line();
-            renderCache.Add(route.RefId, cachedShape);
+            renderState.AddShape(route.RefId, cachedShape);
             layer.ShapesList.Add(cachedShape);
             await layer.UpdateLayer();
         }
@@ -75,16 +78,16 @@ public static class FlightExtensions
 
         line.StrokeThickness = 3;
 
-        line.Properties["flight-id"] = flightId;
+        line.Properties[MapConstants.FlightIdKey] = flightId;
         line.Properties[MapConstants.ItemEditableKey] = editable; //Should probably be false as the route shouldn't be editable
 
         line.UpdateShape();
         
     }
 
-    private static async Task RenderAsync(this Point waypoint, Guid flightId, CoalitionSide side, RoleType role, bool editable, Layer layer, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    private static async Task RenderAsync(this Point waypoint, Guid flightId, CoalitionSide side, RoleType role, bool editable, Layer layer, MissionRenderState renderState, CoordConverter coordConverter)
     {
-        if(!renderCache.TryGetValue(waypoint.RefId, out Shape? cachedShape))
+        if(!renderState.TryGetShape(waypoint.RefId, out Shape? cachedShape))
         {
             if (layer is null)
             {
@@ -93,8 +96,11 @@ public static class FlightExtensions
             }
 
             //No cached shape, create a new one and add it to the cache.
-            cachedShape = new OpenLayers.Blazor.Point();
-            renderCache.Add(waypoint.RefId, cachedShape);
+            cachedShape = new OpenLayers.Blazor.Point()
+            {
+                Id = waypoint.RefId.ToString()
+            };
+            renderState.AddShape(waypoint.RefId, cachedShape);
             layer.ShapesList.Add(cachedShape);
             await layer.UpdateLayer();
         }
@@ -108,14 +114,15 @@ public static class FlightExtensions
         point.Stroke = "rgba(238, 255, 0, 0.77)";
         point.Radius = 5;
 
-        point.Properties["flight-id"] = flightId;
+        point.Properties["$type"] = MapConstants.ShapeTypes.FlightWaypoint;
+        point.Properties[MapConstants.FlightIdKey] = flightId;
         point.Properties[MapConstants.ItemEditableKey] = editable;
 
         await point.UpdateShape();
 
     }
 
-    private static async Task RenderAsync(this PlaneUnit unit, CoalitionSide side, RoleType role, bool editable, Layer layer, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    private static async Task RenderAsync(this PlaneUnit unit, CoalitionSide side, RoleType role, bool editable, Layer layer, MissionRenderState renderState, CoordConverter coordConverter)
     {
         //TODO: Render the unit as an svg based plane
     }

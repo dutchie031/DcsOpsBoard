@@ -2,29 +2,30 @@ using System;
 using DcsMissionParser.Net;
 using DcsMissionParser.Net.CoordMapping;
 using DcsMissionParser.Net.Objects.Drawing;
+using DcsOpsBoard.Components.PlanningComponents.HelperClasses;
 using DcsOpsBoard.Constants;
 using DcsOpsBoard.Types.Extensions;
 using OpenLayers.Blazor;
 
-namespace DcsOpsBoard.Hubs.MissionEditing.RenderExtensions;
+namespace DcsOpsBoard.MissionEditing.RenderExtensions;
 
 public static class DrawingObjectExtensions
 {
-    public static async Task RenderAsync(this DrawingObject obj, Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    public static async Task RenderAsync(this DrawingObject obj, Map map, MissionRenderState renderState, CoordConverter coordConverter)
     {
         if (obj is FreeLine line)
         {
-            await line.RenderAsync(map, renderCache, coordConverter);
+            await line.RenderAsync(map, renderState, coordConverter);
         } 
         else if(obj is Free polygon)
         {
-            await polygon.RenderAsync(map, renderCache, coordConverter);
+            await polygon.RenderAsync(map, renderState, coordConverter);
         }
     }
 
-    private static async Task RenderAsync(this FreeLine obj, Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    private static async Task RenderAsync(this FreeLine obj, Map map, MissionRenderState renderState, CoordConverter coordConverter)
     {
-        if(!renderCache.TryGetValue(obj.RefId, out Shape? cachedShape))
+        if(!renderState.TryGetShape(obj.RefId, out Shape? cachedShape))
         {
             var layer = map.LayersList.FirstOrDefault(l => l.Id == MapConstants.DrawingLayerId);
             if (layer is null)
@@ -35,7 +36,7 @@ public static class DrawingObjectExtensions
 
             //No cached shape, create a new one and add it to the cache.
             cachedShape = new OpenLayers.Blazor.Line();
-            renderCache.Add(obj.RefId, cachedShape);
+            renderState.AddShape(obj.RefId, cachedShape);
             layer.ShapesList.Add(cachedShape);
             await layer.UpdateLayer();
         }
@@ -65,9 +66,9 @@ public static class DrawingObjectExtensions
         await line.UpdateShape();
     }
 
-    public static async Task RenderAsync(this Free obj, Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    public static async Task RenderAsync(this Free obj, Map map, MissionRenderState renderState, CoordConverter coordConverter)
     {
-        if(!renderCache.TryGetValue(obj.RefId, out Shape? cachedShape))
+        if(!renderState.TryGetShape(obj.RefId, out Shape? cachedShape))
         {
             var layer = map.LayersList.FirstOrDefault(l => l.Id == MapConstants.DrawingLayerId);
             if (layer is null)
@@ -78,7 +79,7 @@ public static class DrawingObjectExtensions
 
             //No cached shape, create a new one and add it to the cache.
             cachedShape = new OpenLayers.Blazor.Polygon();
-            renderCache.Add(obj.RefId, cachedShape);
+            renderState.AddShape(obj.RefId, cachedShape);
             layer.ShapesList.Add(cachedShape);
             await layer.UpdateLayer();
         }

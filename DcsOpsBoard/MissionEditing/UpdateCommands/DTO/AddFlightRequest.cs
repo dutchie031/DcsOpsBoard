@@ -4,7 +4,7 @@ using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
 using DcsMissionParser.Net.Objects.Coalitions.Units.Plane;
 using DcsOpsBoard.Types.Enums;
 
-namespace DcsOpsBoard.Hubs.MissionEditing.UpdateCommands.DTO;
+namespace DcsOpsBoard.MissionEditing.UpdateCommands.DTO;
 
 public class AddFlightRequest
 {

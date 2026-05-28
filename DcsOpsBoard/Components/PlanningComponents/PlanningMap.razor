@@ -1,8 +1,10 @@
 ﻿@using System.Text.Json
 @using DcsMissionParser.Net
 @using DcsMissionParser.Net.CoordMapping
+@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
 @using DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Tasks
 @using DcsOpsBoard.Components.Modals.Warnings
+@using DcsOpsBoard.Components.PlanningComponents.HelperClasses
 @using DcsOpsBoard.Configuration
 @using DcsOpsBoard.Constants
 @using DcsOpsBoard.Database.Entities
@@ -10,16 +12,20 @@
 @using DcsOpsBoard.Database.Services
 @using DcsOpsBoard.Hubs
 @using DcsOpsBoard.Hubs.HubModels
-@using DcsOpsBoard.Hubs.MissionEditing
-@using DcsOpsBoard.Hubs.MissionEditing.RenderExtensions
+@using DcsOpsBoard.MissionEditing
+@using DcsOpsBoard.MissionEditing.RenderExtensions
 @using DcsOpsBoard.Services
 @using DcsOpsBoard.Types
+@using DcsOpsBoard.Types.Enums
+@using DcsPlanePoint = DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Point
 @using Microsoft.AspNetCore.SignalR
 @using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.JSInterop
 @using OpenLayers.Blazor
 
 @rendermode InteractiveServer
+
+@implements IDisposable
 
 @inject IMissionStorageManager MissionStorageManager
 @inject IPermissionManager PermissionsManager
@@ -39,7 +45,11 @@
     private Layer? _shaderLayer;
     private Layer? _detailedLayer;
     private Layer? _objectsLayer;
+
+    private readonly MissionRenderState _renderState = new();
     
+    private CursorHelper _cursorHelper = null!;
+
     private Layer? _cursorLayer;
     private object BaseTileSourceOptions = new
     {
@@ -79,6 +89,15 @@
     protected override async Task OnInitializedAsync()
     {
         MissionSelectorService.OnMissionSelected += SetCurrentMission;
+
+        _cursorHelper = new CursorHelper
+        {
+            AuthState = AuthState,
+            CursorHubProvider = CursorHubProvider,
+            UserMapSettings = UserMapSettings,
+            CursorLayer = _cursorLayer
+        };
+
     }
 
     private bool _pendingLimitsUpdate = false;
@@ -89,8 +108,10 @@
 
         await JS.InvokeVoidAsync("dcsMap.setActiveMap", _currentMission.Map.ToMapString());
 
+        _renderState.Clear();
+
         await JoinMission();
-        await JoinCursorsHub();
+        await _cursorHelper.JoinCursorsHub(_currentMission.MissionId);
         await InvokeAsync(StateHasChanged);
 
     }
@@ -101,9 +122,24 @@
         {
             UserMapSettings.OnSettingsChanged += StateHasChanged;
         }
+
+        UpdateDotNetRef();
     }
 
 #region Mission Editor 
+
+    private DotNetObjectReference<PlanningMap>? _dotNetRef;
+
+    public void UpdateDotNetRef()
+    {
+        if (_dotNetRef != null)
+        {
+            _dotNetRef.Dispose();
+        }
+
+        _dotNetRef = DotNetObjectReference.Create(this);
+        JS.InvokeVoidAsync("dcsMap.setRazorReference", _dotNetRef);
+    }
 
     private Dictionary<Guid, Shape> _drawnShapes = [];
     private RoleType _currentRoleInMission = RoleType.Unknown;
@@ -190,7 +226,7 @@
     {
         //Render the map, then render the mission afterwards.
         await InvokeAsync(StateHasChanged);
-        await mission.RenderAsync(_currentRoleInMission, [], _map, _drawnShapes, _currentMission!.Map.CoordConverter);
+        await mission.RenderAsync(_currentRoleInMission, [], _map, _renderState, _currentMission!.Map.CoordConverter);
        
     }
     
@@ -212,145 +248,59 @@
 
     }
 
-#endregion
-
-
-#region Cursor Management
-
-    private CursorData? _myCursorData = null;
-    private bool _registeredCursorHandler = false;
-    private async Task JoinCursorsHub()
-    {
-        if (_currentMission == null)
+    [JSInvokable]
+    public async Task OnItemMoved(Guid featureId, double lon, double lat)
+    {   
+        
+        if(!_renderState.TryGetShape(featureId, out Shape? shape))
         {
+            Console.WriteLine($"Shape with id {featureId} not found");
             return;
         }
 
-        await AuthState.EnsureLoaded();
-        if (!AuthState.IsAuthenticated || AuthState.DiscordId is null)
-        {
-            return;
-        }
+        string type = shape.Properties.ContainsKey("$type") ? shape.Properties["$type"].ToString() ?? "unknown" : "unknown";
 
-        _myCursorData = new CursorData
-        {
-            UserId = AuthState.DiscordId.Value,
-            MissionId = _currentMission.MissionId,
-            UserName = AuthState.Username ?? "Unknown",
-            AvatarUrl = AuthState.AvatarUrl ?? string.Empty,
-            Lat = 0,
-            Lon = 0
-        };
+        Console.WriteLine($"Item {featureId} of type {type} moved to {lon}, {lat}");
 
-        await CursorHubProvider.EnsureStartedAsync();
-
-        if (!_registeredCursorHandler) 
-        {
-            CursorHubProvider.Connection.On<CursorData>(CursorHub.ReceivedCursorPositionMethodName, async (data) =>
-            {
-                if (!UserMapSettings.ShowFriendlyCursors)
-                {
-                    return;
-                }
-
-                _ = UpdateCursor(data);
-            });
-            _registeredCursorHandler = true;
-        };
-
-        await CursorHubProvider.Connection.SendAsync(CursorHub.JoinCursorGroupMethodName, _currentMission.MissionId, AuthState.DiscordId);
+        // TODO: Update your mission data here
+        // TODO: Send update via SignalR
     }
 
-    private readonly Dictionary<string, Shape> _cursorShapes = [];
-    public async Task UpdateCursor(CursorData data)
+    [JSInvokable]
+    public async Task OnItemMoving(Guid featureId, double lon, double lat)
     {
-        if (_currentMission == null || _currentMission.MissionId != data.MissionId)
+        if(!_renderState.TryGetShape(featureId, out Shape? shape))
         {
+            Console.WriteLine($"Shape with id {featureId} not found");
             return;
         }
 
-        if (_cursorLayer is null)
-            return;
+        string type = shape.Properties.ContainsKey("$type") ? shape.Properties["$type"].ToString() ?? "unknown" : "unknown";
 
-        var cursorId = "cursor-" + data.UserId;
-
-        if (!_cursorShapes.TryGetValue(cursorId, out var shape))
+        if(type == MapConstants.ShapeTypes.FlightWaypoint)
         {
-            shape = new Shape(ShapeType.Point)
+            if(shape.Properties.TryGetValue(MapConstants.FlightIdKey, out var flightIdObj) && flightIdObj is Guid flightId)
             {
-                Id = cursorId,
-                Coordinates = new Coordinates(new Coordinate(data.Lon, data.Lat)),
-                Styles = [
-                    new()
+                if(_renderState.TryGetFlight(flightId, out PlaneGroup? flight))
+                {
+                    DcsPlanePoint? changedPoint = flight.Route.Points.FirstOrDefault(p => p.RefId == featureId);
+                    
+                    if(changedPoint != null)
                     {
-                        Circle = new StyleOptions.CircleStyleOptions
+                        var coordConverter = _currentMission!.Map.CoordConverter;
+                        DcsCoord dcsCoord = coordConverter.LLtoLO(new LatLong{ Lat = lat, Lon = lon });
+                        changedPoint.X = dcsCoord.X;
+                        changedPoint.Y = dcsCoord.Y;
+
+                        // Update local only by redrawing the entire flight.
+                        if(_renderState.TryGetFlightCoalition(flightId, out CoalitionSide coalition))
                         {
-                            Radius = 10,
-                            Fill = new StyleOptions.FillOptions
-                            {
-                                Color = "#222430"
-                            },
-                            Stroke = new StyleOptions.StrokeOptions
-                            {
-                                Color = "#222430",
-                                Width = 2
-                            },
-                            Opacity = 0.7
-                        }
-                    },
-                    new () 
-                    {
-                        Icon = new StyleOptions.IconStyleOptions
-                        {
-                            AnchorOrigin = StyleOptions.IconOrigin.TopRight,
-                            AnchorXUnits = StyleOptions.IconAnchorUnits.Fraction,
-                            AnchorYUnits = StyleOptions.IconAnchorUnits.Fraction,
-                            Anchor = new double[] { 0.5, 0.5 },
-                            Opacity = 1,
-                            Width = 16,
-                            Height = 16,
-                            Source = data.AvatarUrl,
+                            await flight.RenderAsync(coalition, _currentRoleInMission, [], _map, _renderState, _currentMission.Map.CoordConverter);
                         }
                     }
-                
-                ]
-            };
-
-            _cursorShapes[cursorId] = shape;
-            _cursorLayer.ShapesList.Add(shape);
-            await _cursorLayer.UpdateLayer();
-            return;
+                }
+            }
         }
-
-        shape.Coordinates = new Coordinates(new Coordinate(data.Lon, data.Lat));
-        await shape.UpdateCoordinates();
-    }
-
-    private DateTime _lastPointerSent= DateTime.MinValue;
-    private TimeSpan PointerUpdateInterval = TimeSpan.FromMilliseconds(100);
-    
-    private async Task OnPointerMove(Coordinate coordinate) 
-    {
-        var now = DateTime.UtcNow;
-        if (now - _lastPointerSent < PointerUpdateInterval)
-        {
-            return;
-        }
-
-        if(CursorHubProvider.Connection.State != HubConnectionState.Connected)
-        {
-            return;
-        }
-
-        if (_myCursorData == null || _currentMission == null)
-        {
-            return;
-        }
-
-        _myCursorData.Lat = coordinate.Y;
-        _myCursorData.Lon = coordinate.X;
-
-        await CursorHubProvider.Connection.SendAsync(CursorHub.SendCursorPositionMethodName, _currentMission.MissionId, _myCursorData);
     }
 
 #endregion
@@ -384,35 +334,44 @@
             }
         };
     }
+    
+    public void Dispose()
+    {
+        MissionSelectorService.OnMissionSelected -= SetCurrentMission;
+        UserMapSettings.OnSettingsChanged -= StateHasChanged;
+        _dotNetRef?.Dispose();
+    }
+
+    public async Task OnPointerMove(Coordinate coordinate)
+    {
+        await _cursorHelper.SignalPointerMove(coordinate);
+    }
 
 }
 
-
 <div class="map-container">
-
     @if (_currentMission != null)
     {
         <Map
-            EnableEditShapes
             OnPointerMove="OnPointerMove"
             @key="@($"map-{_currentMission.MissionId}")" 
             @ref="_map"
             style=@($"height: 100%; width: 100%; z-index: 0; {(_currentMission == null ? "display:none;" :
                                   "")}") ZoomChanged="OnZoomChanged" MaxZoom="_currentMission!.Map.MaxZoom" MinZoom="_currentMission.Map.MinZoom"
-             ConfigureJsMethod="dcsMap.configureDetailedLayerLookup">
+             ConfigureJsMethod="dcsMap.configureMap">
             <Layers>
 
                 <Layer @ref="_extentLayer" Extent="@GetExtent()" Opacity="0"/>
 
-                <Layer @key="@(_currentMission?.MissionId)"
+                @* <Layer @key="@(_currentMission?.MissionId)"
                         @ref="_baseLayer" Id="base-layer" 
                         Visibility="true"
                         SourceType="SourceType.XYZ" 
                         SourceOptions="BaseTileSourceOptions"
-                       Url=@($"/api/tiles/{_currentMission?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") Format="image/webp" />
+                       Url=@($"/api/tiles/{_currentMission?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") Format="image/webp" /> *@
 
                 @* Detailed layer is loaded dynamically via JS to avoid unnecessary tile loading *@
-                <Layer @ref="_detailedLayer" Id="detailed-layer" SourceType="SourceType.XYZ"
+                @* <Layer @ref="_detailedLayer" Id="detailed-layer" SourceType="SourceType.XYZ"
                        SourceOptions="DetailedTileSourceOptions" MinZoom="15" Format="image/webp" />
 
                 <Layer @ref="_shaderLayer" Id="shader-layer" SourceOptions="ShaderTileSourceOptions"
@@ -425,7 +384,7 @@
                     MinZoom="12" MaxZoom="17"
                     SourceOptions="VectorTileSourceOptions"
                     Style="@GetObjectLayerStyle()"
-                    Visibility="true" />
+                    Visibility="true" /> *@
 
                 <Layer Id="@MapConstants.DrawingLayerId" 
                     LayerType="LayerType.Vector"
@@ -435,17 +394,12 @@
                 <Layer Id="@MapConstants.EditableFlightsLayerId" 
                     LayerType="LayerType.Vector"
                     Options="@DrawingLayerOptions"
-                    SelectionEnabled="true"
-                    SelectedShapeChanged="SelectedShapeChanged"
                     />
 
                 <Layer Id="@MapConstants.NonEditableFlightsLayerId" 
                     LayerType="LayerType.Vector"
                     Options="@DrawingLayerOptions"
                     />
-
-
-
 
                 <Layer @ref="_cursorLayer" Id="cursor-layer" LayerType="LayerType.Vector"
                        Visibility="@(UserMapSettings.ShowFriendlyCursors)" />
