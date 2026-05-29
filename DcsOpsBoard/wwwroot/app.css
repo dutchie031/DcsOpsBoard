@@ -81,14 +81,12 @@ body {
     height: 90vh;
     background-color: #222430;
     margin-top: 5vh;
-    margin-left: 5vw;
+    margin-left: 10vw;
 }
 
 .planning-map-container {
     width: 80vw;
     height: 90vh;
-    margin-top: 5vh;
-    margin-left: 5vw;
 }
 
 

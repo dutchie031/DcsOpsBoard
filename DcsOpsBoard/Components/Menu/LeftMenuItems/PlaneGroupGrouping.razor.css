@@ -1,0 +1,32 @@
+
+
+.grouping-row {
+    display: flex;
+    flex-direction: column;
+    height: 0;
+    overflow: hidden;
+    transition: height 2s ease;
+}
+
+.grouping-row.expanded {
+    height: auto;
+}
+
+
+.grouping-header {
+    border-bottom: 1px solid #444654;
+}
+
+.grouping-header:hover {
+    background-color: #444654;
+    cursor: pointer;
+}
+
+.grouping-item {
+    padding: 5px 10px;
+}
+
+.grouping-item:hover {
+    background-color: #333545;
+    cursor: pointer;
+}

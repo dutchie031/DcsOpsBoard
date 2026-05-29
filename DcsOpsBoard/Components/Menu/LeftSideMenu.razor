@@ -1,32 +1,77 @@
 ﻿@using DcsMissionParser.Net
+@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
+@using DcsMissionParser.Net.Objects.Commons
+@using DcsOpsBoard.Components.Menu.LeftMenuItems
 @using DcsOpsBoard.Database.Entities
+@using DcsOpsBoard.Hubs.Clients
 @using DcsOpsBoard.Services
 
 @rendermode InteractiveServer
 
-
-@inject IMissionSelectorService MissionSelectorService
+@inject IMissionEditingClient MissionEditingClient
 
 @code {
 
-
-    private DcsMission? CurrentMission;
-    private OpsPlanningMission? CurrentMissionData;
+    private DcsMission? CurrentMission => MissionEditingClient.CurrentMission;
 
     protected override void OnInitialized()
     {
-        MissionSelectorService.OnMissionSelected += MissionChanged;
+        MissionEditingClient.OnMissionChanged += MissionChanged;
+        MissionEditingClient.OnMissionReceived += MissionReceived;
         base.OnInitialized();
     }
 
-    private async Task MissionChanged(OpsPlanningMission mission)
+    private async Task MissionChanged()
     {
-        CurrentMissionData = mission;
         await InvokeAsync(StateHasChanged);
     }
+
+    private Dictionary<string, List<PlaneGroup>> PlaneGroupings = [];
+    private Dictionary<string, List<PlaneGroup>> ClientPlaneGroupings = [];
+
+    private async Task MissionReceived()
+    {
+        if(CurrentMission != null)
+        {
+            foreach(PlaneGroup group in CurrentMission.Coalitions.Blue.Countries.SelectMany(x => x.Planes.Groups))
+            {
+                if(group.Units.Any(x => x.Skill == Skill.Client || x.Skill == Skill.Player))
+                {
+                    if(!ClientPlaneGroupings.TryGetValue("Blue Clients", out List<PlaneGroup>? groups))
+                    {
+                        groups = [];
+                        ClientPlaneGroupings.Add("Blue Clients", groups);
+                    }
+                    groups.Add(group);
+                } 
+                else 
+                {
+                    if(!PlaneGroupings.TryGetValue("Blue AI", out List<PlaneGroup>? groups))
+                    {
+                        groups = [];
+                        PlaneGroupings.Add("Blue AI", groups);
+                    }
+                    groups.Add(group);
+                }
+            }
+
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
     
-
-
-
 }
+
+<div id="left-menu-body">
+    @if(CurrentMission != null)
+    {
+        foreach(var grouping in PlaneGroupings)
+        {
+            <PlaneGroupGrouping GroupingName="@grouping.Key" Groups="@grouping.Value"></PlaneGroupGrouping>
+        }
+        
+    }
+</div>
+
 

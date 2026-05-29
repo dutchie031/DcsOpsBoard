@@ -1,0 +1,53 @@
+﻿@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
+
+@code {
+
+    [Parameter]
+    public required string GroupingName { get; set; }
+
+    [Parameter]
+    public required List<PlaneGroup> Groups { get; set; }
+
+    private bool IsExpanded { get; set; } = false;
+
+}
+
+<div class="container-fluid">
+
+    <div class="row">
+        <div class="col-12">
+            <div class="grouping-header" @onclick="() => IsExpanded = !IsExpanded">
+                <h3>
+                    <span>@GroupingName</span>
+                    <span class="expand-icon">@((IsExpanded) ? "-" : "+")</span>
+                </h3>
+               
+            </div>
+        </div>
+    </div>
+    <div class="row grouping-row @(IsExpanded ? "expanded" : "")">
+        <div class="col-12">
+            @foreach(var group in Groups)
+            {
+                <div class="grouping-item" @key="group.RefId">
+                    <div class="container-fluid">
+                        <div class="row">
+                            <div class="col-12">
+                                 <span>@group.GroupName</span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <span>@group.Units.Count() Units</span>
+                            </div>
+                        </div>
+                       
+                    </div>
+                    
+                </div>
+            }
+        </div>
+    </div>
+
+</div>
+

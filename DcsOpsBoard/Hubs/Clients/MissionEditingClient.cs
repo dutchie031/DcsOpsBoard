@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using DcsMissionParser.Net;
 using DcsOpsBoard.Database.Entities;
 using DcsOpsBoard.Database.Enums;
@@ -84,15 +85,23 @@ public class MissionEditingClient : IMissionEditingClient
         
 
         CurrentMissionData = obj;
-        CurrentRoleInMission = _permissionManager
-            .GetPermissionsForMission(obj.MissionId, _authState.DiscordId)
-            .Where(p => p.MissionId == obj.MissionId && p.UserId == _authState.DiscordId) //Additional filtering just in case
-            .Select(p => p.Role)
-            .GetHighestRole();
+
+        if(CurrentMissionData.OwnerId == _authState.DiscordId)
+        {
+            CurrentRoleInMission = RoleType.Admin;
+        }
+        else
+        {
+            CurrentRoleInMission = _permissionManager
+                .GetPermissionsForMission(obj.MissionId, _authState.DiscordId)
+                .Where(p => p.MissionId == obj.MissionId && p.UserId == _authState.DiscordId) //Additional filtering just in case
+                .Select(p => p.Role)
+                .GetHighestRole();
+        }
 
         await OnMissionChanged.Invoke();
 
-        if(_missionEditingHubProvider.Connection.State == Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected)
+        if(_missionEditingHubProvider.Connection.State == HubConnectionState.Connected)
         {
             await _missionEditingHubProvider.Connection.SendAsync(MissionEditHub.JoinMethodName, obj.MissionId);
         }
@@ -103,16 +112,35 @@ public class MissionEditingClient : IMissionEditingClient
     {
         if (_hubEventsRegistered) return;
 
-        _missionEditingHubProvider.Connection.On<DcsMission>(MissionEditHub.OnMissionUpdate, MissionReceived);
+        _missionEditingHubProvider.Connection.On<JsonElement>(MissionEditHub.OnFullUpdate, MissionReceived);
         _missionEditingHubProvider.Connection.On<IMissionCommand>(MissionEditHub.OnMissionUpdate, CommandReceived);
 
         _hubEventsRegistered = true;
     }
 
-    private async Task MissionReceived(DcsMission mission)
+    private async Task MissionReceived(JsonElement payload)
     {
-        CurrentMission = mission;
-        await OnMissionReceived.Invoke();
+        try
+        {
+            var mission = payload.Deserialize<DcsMission>(new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (mission == null)
+            {
+                Console.WriteLine("ReceiveMissionUpdate received but deserialized mission is null.");
+                return;
+            }
+
+            CurrentMission = mission;
+            await OnMissionReceived.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ReceiveMissionUpdate deserialize failed: {ex}");
+            Console.WriteLine($"ReceiveMissionUpdate payload: {payload.GetRawText()}");
+        }
     }
 
     private async Task CommandReceived(IMissionCommand command)
@@ -121,7 +149,6 @@ public class MissionEditingClient : IMissionEditingClient
 
         await OnCommandReceived.Invoke(command);
     }
-    
     
 
 }
