@@ -5,20 +5,30 @@ namespace DcsOpsBoard.Services;
 
 public interface IUnitSelectorService
 {
-    public event Func<PlaneGroup, Task> OnPlaneGroupSelected;
+    public event Func<UnitSelectedArgs, Task> OnGroupSelected;
 
     public Task SelectPlaneGroup(PlaneGroup group);
 }
 
+public class UnitSelectedArgs
+{
+    public required Type SelectedType { get; set; }
+    public required object SelectedUnit { get; set; }
+}
+
 public class UnitSelectorService : IUnitSelectorService
 {
-    public event Func<PlaneGroup, Task> OnPlaneGroupSelected = (_) => Task.CompletedTask;
+    public event Func<UnitSelectedArgs, Task> OnGroupSelected = (_) => Task.CompletedTask;
 
     public async Task SelectPlaneGroup(PlaneGroup group)
     {
-        if(OnPlaneGroupSelected != null)
+        if(OnGroupSelected != null)
         {
-            await OnPlaneGroupSelected.Invoke(group);
+            await OnGroupSelected.Invoke(new UnitSelectedArgs
+            {
+                SelectedType = typeof(PlaneGroup),
+                SelectedUnit = group
+            });
         }
     }
 }

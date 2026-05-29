@@ -32,6 +32,7 @@
 @inject HubConnectionProvider<CursorHub> CursorHubProvider
 @inject IUserMapSettings UserMapSettings
 @inject IUserAuthenticationState AuthState
+@inject IUnitSelectorService UnitSelectorService
 @inject WarningService WarningService
 @inject IJSRuntime JS
 
@@ -88,6 +89,7 @@
     {
         MissionEditingClient.OnMissionChanged += MissionChanged;
         MissionEditingClient.OnMissionReceived += MissionEditingClient_OnMissionReceived;
+
         _cursorHelper = new CursorHelper
         {
             AuthState = AuthState,
@@ -153,6 +155,23 @@
 
     private Dictionary<Guid, Shape> _drawnShapes = [];
     
+    private UnitSelectedArgs? _lastSelectedUnit;
+    private async Task UnitSelectorService_OnGroupSelected(UnitSelectedArgs args)
+    {
+        if(_lastSelectedUnit != null)
+        {
+            if(_lastSelectedUnit.SelectedType == typeof(PlaneGroup) && _lastSelectedUnit.SelectedUnit is PlaneGroup lastGroup)
+            {
+                
+            }
+        }
+
+        if(args.SelectedType == typeof(PlaneGroup) && args.SelectedUnit is PlaneGroup group)
+        {
+            
+        }
+    }
+
     private async Task HandleMissionUpdate(IMissionCommand command)
     {
         
