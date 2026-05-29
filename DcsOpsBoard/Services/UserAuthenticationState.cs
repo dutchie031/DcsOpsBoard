@@ -83,14 +83,17 @@ public class UserAuthenticationState : IUserAuthenticationState
     public async Task EnsureLoaded()
     {
         if(_isLoaded) return;
-        await FetchData();    
-        
-        _isLoaded = true;
+        _isLoaded = await FetchData();    
     }
 
-    public async Task FetchData()
+    public async Task<bool> FetchData()
     {
-        string accessToken = await GetAccessToken() ?? throw new InvalidOperationException("Access token is not available");
+        string? accessToken = await GetAccessToken() ?? null;
+
+        if(accessToken == null)
+        {
+            return false;
+        }
 
         HttpClient client = _httpClientFactory.CreateClient(nameof(UserAuthenticationState));
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -98,7 +101,7 @@ public class UserAuthenticationState : IUserAuthenticationState
         HttpResponseMessage responseMessage = await client.GetAsync("https://discord.com/api/oauth2/@me");
         if (responseMessage.StatusCode != System.Net.HttpStatusCode.OK)
         {
-            return;
+            return false;
         }
 
         string responseContent = await responseMessage.Content.ReadAsStringAsync();
@@ -110,8 +113,7 @@ public class UserAuthenticationState : IUserAuthenticationState
             Username = response.User.GlobalName ?? response.User.Username;
             AvatarUrl = $"https://cdn.discordapp.com/avatars/{response.User.Id}/{response.User.Avatar}.png";
         }
-
-        _isLoaded = true;
+        return true;
     }
 
     public async Task<string?> GetAccessToken()

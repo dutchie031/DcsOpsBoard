@@ -31,6 +31,9 @@
 
     private async Task MissionReceived()
     {
+        PlaneGroupings.Clear();
+        ClientPlaneGroupings.Clear();
+
         if(CurrentMission != null)
         {
             foreach(PlaneGroup group in CurrentMission.Coalitions.Blue.Countries.SelectMany(x => x.Planes.Groups))

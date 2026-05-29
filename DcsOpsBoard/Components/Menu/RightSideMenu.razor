@@ -1,13 +1,16 @@
-﻿@using DcsOpsBoard.Services
+﻿@using DcsOpsBoard.Hubs.Clients
+@using DcsOpsBoard.Services
 @rendermode InteractiveServer
 
 @inject IUserMapSettings UserMapSettings
+@inject IMissionEditingClient MissionEditingClient
 
 @code {
-
+    
     protected override void OnInitialized()
     {
         UserMapSettings.OnSettingsChanged += StateHasChanged;
+        MissionEditingClient.OnMissionChanged += OnMissionChanged;
         base.OnInitialized();
     }
     
@@ -22,11 +25,21 @@
         UserMapSettings.ShowFriendlyCursors = !UserMapSettings.ShowFriendlyCursors;
     }
 
+    private async Task OnMissionChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
     private void ToggleDrawingLayer()
     {
         UserMapSettings.ShowDrawingLayer = !UserMapSettings.ShowDrawingLayer;
     }
 
+}
+
+@if(MissionEditingClient == null)
+{
+    return;
 }
 
 <div id="right-menu-body">

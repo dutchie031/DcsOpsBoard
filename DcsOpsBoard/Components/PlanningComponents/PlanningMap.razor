@@ -113,6 +113,11 @@
 
     public async Task MissionEditingClient_OnMissionReceived()
     {
+        _map?.ShapesList.Clear();
+        foreach(Layer layer in _map?.LayersList ?? [])
+        {
+            layer.ShapesList.Clear();
+        }
         await InvokeAsync(StateHasChanged);
         if(MissionEditingClient.CurrentMissionData != null && MissionEditingClient.CurrentMission != null)
         {
