@@ -36,6 +36,7 @@ services.Configure<DiscordAuthentication>(builder.Configuration.GetSection("Disc
 services.AddScoped<IDiscordUserClient, DiscordUserClient>();
 services.AddSingleton<IDiscordBotClient, DiscordBotClient>();
 services.AddScoped<IFindUserService, FindUserService>();
+services.AddScoped<IUnitSelectorService, UnitSelectorService>();
 
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));
 
