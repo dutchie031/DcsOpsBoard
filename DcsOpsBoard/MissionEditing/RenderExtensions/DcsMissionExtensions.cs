@@ -3,6 +3,7 @@ using DcsMissionParser.Net;
 using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
 using DcsOpsBoard.Components.PlanningComponents.HelperClasses;
 using DcsOpsBoard.Database.Enums;
+using DcsOpsBoard.Hubs.Clients;
 using DcsOpsBoard.Types.Enums;
 using OpenLayers.Blazor;
 
@@ -10,6 +11,11 @@ namespace DcsOpsBoard.MissionEditing.RenderExtensions;
 
 public static class DcsMissionExtensions
 {
+    public static async Task RenderMissionAsync(this Map map, DcsMission mission, IMissionEditingClient editingClient)
+    {
+        
+    }
+
     public static async Task RenderAsync(this DcsMission mission, RoleType role, List<string> ownedFlights, Map map, MissionRenderState renderState, CoordConverter coordConverter)
     {
         if(mission == null)
