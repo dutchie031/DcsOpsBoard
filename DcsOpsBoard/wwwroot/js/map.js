@@ -6,9 +6,11 @@ window.dcsMap._state = {
     detailedSource: null,
     buildupSource: null,
     objectsSource: null,
+    settlementsSource: null,
     detailedCoverageByMap: new Map(),
     buildupCoverageByMap: new Map(),
-    objectsCoverageByMap: new Map()
+    objectsCoverageByMap: new Map(),
+    settlementsCoverageByMap: new Map()
 };
 
 window.dcsMap.configureMap = function (map) {
@@ -90,6 +92,38 @@ window.dcsMap.setupTranslateCallback = function (map) {
     }
 }
 
+function customLoadMvtTile(tile, url) {
+    tile.setLoader(function (extent) {
+        fetch(url)
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error(`tile fetch failed: ${response.status}`);
+                }
+                return response.arrayBuffer();
+            })
+            .then(function (data) {
+                const format = tile.getFormat();
+                const features = format.readFeatures(data);
+                const scaleX = (extent[2] - extent[0]) / 4096;
+                const scaleY = (extent[3] - extent[1]) / 4096;
+
+                features.forEach(function (feature) {
+                    const geometry = feature && typeof feature.getGeometry === "function" ? feature.getGeometry() : null;
+                    if (!geometry || typeof geometry.scale !== "function" || typeof geometry.translate !== "function") {
+                        return;
+                    }
+
+                    geometry.scale(scaleX, -scaleY, [0, 0]);
+                    geometry.translate(extent[0], extent[3]);
+                });
+                tile.setFeatures(features);
+            })
+            .catch(function (error) {
+                console.warn("dcsMap: object tile loader failed", tile.getTileCoord(), error);
+                tile.setFeatures([]);
+            });
+    });
+}
 
 window.dcsMap.configureDetailedLayerLookup = function (map) {
     const state = window.dcsMap._state;
@@ -139,38 +173,7 @@ window.dcsMap.configureDetailedLayerLookup = function (map) {
                 if (!coverage || !window.dcsMap.isCovered(coverage, z, x, y)) return undefined;
                 return `/api/objects/${state.activeMap}/${z}/${x}/${y}.mvt`;
             },
-            tileLoadFunction: function (tile, url) {
-                tile.setLoader(function (extent) {
-                    fetch(url)
-                        .then(function (response) {
-                            if (!response.ok) {
-                                throw new Error(`tile fetch failed: ${response.status}`);
-                            }
-                            return response.arrayBuffer();
-                        })
-                        .then(function (data) {
-                            const format = tile.getFormat();
-                            const features = format.readFeatures(data);
-                            const scaleX = (extent[2] - extent[0]) / 4096;
-                            const scaleY = (extent[3] - extent[1]) / 4096;
-
-                            features.forEach(function (feature) {
-                                const geometry = feature && typeof feature.getGeometry === "function" ? feature.getGeometry() : null;
-                                if (!geometry || typeof geometry.scale !== "function" || typeof geometry.translate !== "function") {
-                                    return;
-                                }
-
-                                geometry.scale(scaleX, -scaleY, [0, 0]);
-                                geometry.translate(extent[0], extent[3]);
-                            });
-                            tile.setFeatures(features);
-                        })
-                        .catch(function (error) {
-                            console.warn("dcsMap: object tile loader failed", tile.getTileCoord(), error);
-                            tile.setFeatures([]);
-                        });
-                });
-            }
+            tileLoadFunction: customLoadMvtTile
         });
 
         state.objectsSource = source;
@@ -180,9 +183,44 @@ window.dcsMap.configureDetailedLayerLookup = function (map) {
             const coord = tile && tile.getTileCoord ? tile.getTileCoord() : null;
             console.warn("dcsMap: object tile failed to decode", coord, evt);
         });
-
     } else {
         console.warn("dcsMap: object-layer not found");
+    }
+
+    const settlementsLayer = map.getAllLayers().find((l) => l.get("id") === "settlements-layer");
+    if (settlementsLayer) {
+        const source = new ol.source.VectorTile({
+            format: new ol.format.MVT({
+                featureClass: ol.Feature
+            }),
+            projection: "EPSG:3857",
+            wrapX: false,
+            tileGrid: ol.tilegrid.createXYZ({
+                maxZoom: 17,
+                tileSize: 512
+            }),
+            tileUrlFunction: function (tileCoord) {
+                if (!tileCoord) return undefined;
+                const z = tileCoord[0];
+                const x = tileCoord[1];
+                const y = tileCoord[2];
+                if (z < 6 || z > 17) return undefined;
+                const coverage = state.settlementsCoverageByMap.get(state.activeMap);
+                if (!coverage || !window.dcsMap.isCovered(coverage, z, x, y)) return undefined;
+                return `/api/settlements/${state.activeMap}/${z}/${x}/${y}.mvt`;
+            },
+            tileLoadFunction: customLoadMvtTile
+        });
+
+        state.settlementsSource = source;
+        settlementsLayer.setSource(source);
+        source.on("tileloaderror", function (evt) {
+            const tile = evt.tile;
+            const coord = tile && tile.getTileCoord ? tile.getTileCoord() : null;
+            console.warn("dcsMap: settlements tile failed to decode", coord, evt);
+        });
+    } else {
+        console.warn("dcsMap: settlements-layer not found");
     }
 
 
@@ -195,7 +233,8 @@ window.dcsMap.setActiveMap = async function (mapName) {
     console.log("dcsMap: active map set to", state.activeMap);
     await Promise.all([
         window.dcsMap.ensureCoverageLoaded("detailed", state.activeMap),
-        window.dcsMap.ensureCoverageLoaded("objects", state.activeMap)
+        window.dcsMap.ensureCoverageLoaded("objects", state.activeMap),
+        window.dcsMap.ensureCoverageLoaded("settlements", state.activeMap)
     ]);
 
     window.dcsMap.refreshAllSources();
@@ -204,20 +243,20 @@ window.dcsMap.setActiveMap = async function (mapName) {
 window.dcsMap.ensureCoverageLoaded = async function (type, mapName) {
     const state = window.dcsMap._state;
     const storeKey = `${type}CoverageByMap`;
-    if (state[storeKey].has(mapName)) return;
 
     const urls = {
         detailed: `/api/detailed-coverage/${mapName}/coverage.json`,
-        objects: `/api/objects/${mapName}/coverage.json`
+        objects: `/api/objects/${mapName}/coverage.json`,
+        settlements: `/api/settlements/${mapName}/coverage.json`
     };
 
     try {
-        const res = await fetch(urls[type], { cache: "force-cache" });
+        const res = await fetch(urls[type]);
         if (!res.ok) throw new Error(`coverage fetch failed: ${res.status}`);
         const json = await res.json();
         state[storeKey].set(mapName, json);
     } catch (err) {
-        console.warn(`dcsMap: failed to load ${type} coverage for`, mapName, err);
+        console.warn(`dcsMap: failed to load${ type} coverage for`, mapName, err);
         state[storeKey].set(mapName, {});
     }
 };
@@ -230,10 +269,17 @@ window.dcsMap.isCovered = function (coverage, z, x, y) {
 
 window.dcsMap.refreshAllSources = function () {
     const state = window.dcsMap._state;
-    for (const source of [state.detailedSource, state.buildupSource, state.objectsSource]) {
+    for (const source of [state.detailedSource, state.buildupSource, state.objectsSource, state.settlementsSource]) {
         if (!source) continue;
-        if (typeof source.clear === "function") source.clear();
-        source.changed();
+        if (typeof source.clear === "function") {
+            source.clear();
+        }
+
+        if (typeof source.refresh === "function") {
+            source.refresh();
+        } else {
+            source.changed();
+        }
     }
 };
 

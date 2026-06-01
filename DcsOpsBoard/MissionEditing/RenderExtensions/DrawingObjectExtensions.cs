@@ -4,6 +4,7 @@ using DcsMissionParser.Net.CoordMapping;
 using DcsMissionParser.Net.Objects.Drawing;
 using DcsOpsBoard.Components.PlanningComponents.HelperClasses;
 using DcsOpsBoard.Constants;
+using DcsOpsBoard.MissionEditing.RenderExtensions.Context;
 using DcsOpsBoard.Types.Extensions;
 using OpenLayers.Blazor;
 
@@ -11,23 +12,23 @@ namespace DcsOpsBoard.MissionEditing.RenderExtensions;
 
 public static class DrawingObjectExtensions
 {
-    public static async Task RenderAsync(this DrawingObject obj, Map map, MissionRenderState renderState, CoordConverter coordConverter)
+    public static async Task RenderAsync(this DrawingObject obj, DcsRenderContext context)
     {
         if (obj is FreeLine line)
         {
-            await line.RenderAsync(map, renderState, coordConverter);
+            await line.RenderAsync(context);
         } 
         else if(obj is Free polygon)
         {
-            await polygon.RenderAsync(map, renderState, coordConverter);
+            await polygon.RenderAsync(context);
         }
     }
 
-    private static async Task RenderAsync(this FreeLine obj, Map map, MissionRenderState renderState, CoordConverter coordConverter)
+    private static async Task RenderAsync(this FreeLine obj, DcsRenderContext context)
     {
-        if(!renderState.TryGetShape(obj.RefId, out Shape? cachedShape))
+        if(!context.RenderState.TryGetShape(obj.RefId, out Shape? cachedShape))
         {
-            var layer = map.LayersList.FirstOrDefault(l => l.Id == MapConstants.DrawingLayerId);
+            var layer = context.Map.LayersList.FirstOrDefault(l => l.Id == MapConstants.DrawingLayerId);
             if (layer is null)
             {
                 //No drawing layer, can't render.
@@ -36,7 +37,7 @@ public static class DrawingObjectExtensions
 
             //No cached shape, create a new one and add it to the cache.
             cachedShape = new OpenLayers.Blazor.Line();
-            renderState.AddShape(obj.RefId, cachedShape);
+            context.RenderState.AddShape(obj.RefId, cachedShape);
             layer.ShapesList.Add(cachedShape);
             await layer.UpdateLayer();
         }
@@ -51,7 +52,7 @@ public static class DrawingObjectExtensions
             p =>
             {
                 DcsCoord coord = new() { X = obj.MapX+p.X, Y = obj.MapY+p.Y };
-                var converted = coordConverter.LOtoLL(coord);
+                var converted = context.CoordConverter.LOtoLL(coord);
                 return new Coordinate(converted.Lon, converted.Lat);
             }
         )];
@@ -66,11 +67,11 @@ public static class DrawingObjectExtensions
         await line.UpdateShape();
     }
 
-    public static async Task RenderAsync(this Free obj, Map map, MissionRenderState renderState, CoordConverter coordConverter)
+    public static async Task RenderAsync(this Free obj, DcsRenderContext context)
     {
-        if(!renderState.TryGetShape(obj.RefId, out Shape? cachedShape))
+        if(!context.RenderState.TryGetShape(obj.RefId, out Shape? cachedShape))
         {
-            var layer = map.LayersList.FirstOrDefault(l => l.Id == MapConstants.DrawingLayerId);
+            var layer = context.Map.LayersList.FirstOrDefault(l => l.Id == MapConstants.DrawingLayerId);
             if (layer is null)
             {
                 //No drawing layer, can't render.
@@ -79,7 +80,7 @@ public static class DrawingObjectExtensions
 
             //No cached shape, create a new one and add it to the cache.
             cachedShape = new OpenLayers.Blazor.Polygon();
-            renderState.AddShape(obj.RefId, cachedShape);
+            context.RenderState.AddShape(obj.RefId, cachedShape);
             layer.ShapesList.Add(cachedShape);
             await layer.UpdateLayer();
         }
@@ -93,7 +94,7 @@ public static class DrawingObjectExtensions
             p =>
             {
                 DcsCoord coord = new() { X = obj.MapX+p.X, Y = obj.MapY+p.Y };
-                var converted = coordConverter.LOtoLL(coord);
+                var converted = context.CoordConverter.LOtoLL(coord);
                 return new Coordinate(converted.Lon, converted.Lat);
             }
         )];

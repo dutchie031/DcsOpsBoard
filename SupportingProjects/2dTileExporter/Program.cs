@@ -16,7 +16,8 @@ Dictionary<Map, MapConfig> mapConfigs = new()
             DetailedSourceDir = @"C:\DCS_Exports\DcsOpsBoard\Detailed_Export\Caucasus",
             DetailedOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Detailed_Tiles",
             ObjectFileIntput =@"C:\DCS_Exports\DcsOpsBoard\Object_Export\Caucasus\objects.json",
-            ObjectsOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Object_Tiles"
+            ObjectsOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Object_Tiles",
+            SettlementOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Settlement_Tiles"
         } 
     },
     { 
@@ -29,7 +30,8 @@ Dictionary<Map, MapConfig> mapConfigs = new()
             DetailedSourceDir = @"C:\DCS_Exports\DcsOpsBoard\Detailed_Export\Kola",
             DetailedOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Detailed_Tiles",
             ObjectFileIntput =@"C:\DCS_Exports\DcsOpsBoard\Object_Export\Kola\objects.json",
-            ObjectsOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Object_Tiles"
+            ObjectsOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Object_Tiles",
+            SettlementOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Settlement_Tiles"
         } 
     },
 };
@@ -69,6 +71,8 @@ Console.WriteLine("1: Tiles");
 Console.WriteLine("2: Shaders");
 Console.WriteLine("3: Detailed Tiles");
 Console.WriteLine("4: Map Objects");
+Console.WriteLine("5: Settlement Hulls");
+Console.WriteLine("6: Settlement Dry-Run");
 Console.WriteLine("Press Enter to export both.");
 string actionInput = Console.ReadLine() ?? string.Empty;
 _ = int.TryParse(actionInput, out action);
@@ -107,12 +111,26 @@ if(action == 0 || action == 3)
 
 if(action == 0 || action == 4)
 {
-    ObjectExporter objectExporter = new (map, 13, 17, config.ObjectFileIntput, config.ObjectsOutputDir);
+    ObjectExporter objectExporter = new (map, 12, 17, config.ObjectFileIntput, config.ObjectsOutputDir);
     await objectExporter.Export();
     Console.WriteLine("Map object export complete.");
 }
 
 if(action == 5)
+{
+    SettlementHullExporter settlementHullExporter = new(map, 6, 17, config.ObjectFileIntput, config.SettlementOutputDir);
+    await settlementHullExporter.Export();
+    Console.WriteLine("Settlement hull export complete.");
+}
+
+if(action == 6)
+{
+    SettlementHullExporter settlementHullExporter = new(map, 6, 17, config.ObjectFileIntput, config.SettlementOutputDir);
+    await settlementHullExporter.DryRunReport();
+    Console.WriteLine("Settlement dry-run complete.");
+}
+
+if(action == 99)
 {
     using FileStream fileStream = File.OpenRead(@"c:\Users\Tim\Downloads\6-30-20.mvt");
     List<VectorTileLayer> layersInfo = VectorTileParser.Parse(fileStream);
@@ -138,5 +156,6 @@ class MapConfig
 
     public required string ObjectFileIntput { get; set; }
     public required string ObjectsOutputDir { get; set; }
+    public required string SettlementOutputDir { get; set; }
 }
 

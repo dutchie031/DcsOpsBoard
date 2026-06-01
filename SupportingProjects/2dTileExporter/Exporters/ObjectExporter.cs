@@ -29,6 +29,11 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
         List<MapObject> objects = ObjectSourceFileReader.ReadObjects(sourceFile);
         Console.WriteLine($"Loaded {objects.Count} objects.");
 
+        // Correctness-first export: remove stale tiles from previous runs.
+        if (Directory.Exists(outputDirectory))
+        {
+            Directory.Delete(outputDirectory, recursive: true);
+        }
         Directory.CreateDirectory(outputDirectory);
 
         for (int zoom = minZoom; zoom <= maxZoom; zoom++)
@@ -353,7 +358,7 @@ public class ObjectExporter(Map map, int minZoom, int maxZoom, string sourceFile
     private List<LatLong> ProjectFootprint(IReadOnlyCollection<DcsPoint> footprint)
     {
         return footprint
-            .Select(point => coordConverter.LOtoLL(new() { X = point.X, Y = point.Z }))
+            .Select(point => _2dTileExporter.Utils.CoordConversion.SafeLOtoLL(coordConverter, new DcsCoord { X = point.X, Y = point.Z }))
             .ToList();
     }
 

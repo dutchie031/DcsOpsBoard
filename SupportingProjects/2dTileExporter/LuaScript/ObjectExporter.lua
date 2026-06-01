@@ -69,18 +69,16 @@ local function buildFootprint(pos, bbox)
     }
 end
 
-local function buildFootprintFromTerrainObb(terrainDesc)
-    if not terrainDesc or not terrainDesc.sizeOBB or not terrainDesc.center then
+local function buildFootprintFromTerrainObb(terrainDesc, pos)
+    if not terrainDesc or not terrainDesc.sizeOBB or not pos or not pos.p or not pos.x or not pos.z then
         return nil
     end
 
     local sizeX = terrainDesc.sizeOBB[1]
     local sizeZ = terrainDesc.sizeOBB[2]
-    local centerX = terrainDesc.center[1]
-    local centerZ = terrainDesc.center[2]
-    local rotation = terrainDesc.rotation or 0
+    local rotation = 0
 
-    if not sizeX or not sizeZ or not centerX or not centerZ then
+    if not sizeX or not sizeZ then
         return nil
     end
 
@@ -89,11 +87,13 @@ local function buildFootprintFromTerrainObb(terrainDesc)
     local cosR = math.cos(rotation)
     local sinR = math.sin(rotation)
 
+    -- Use object transform as the world anchor.
+    -- Terrain descriptor rotation is intentionally ignored because it can be in a
+    -- different frame and cause double-rotation for instanced scenery.
     local function rotateLocal(dx, dz)
-        return {
-            x = centerX + (dx * cosR - dz * sinR),
-            z = centerZ + (dx * sinR + dz * cosR),
-        }
+        local lx = (dx * cosR - dz * sinR)
+        local lz = (dx * sinR + dz * cosR)
+        return toWorldXZ(pos.p, pos.x, pos.z, lx, lz)
     end
 
     return {
@@ -104,8 +104,8 @@ local function buildFootprintFromTerrainObb(terrainDesc)
     }
 end
 
-local function buildFootprintFromTerrainAabb(terrainDesc)
-    if not terrainDesc or not terrainDesc.boxMin or not terrainDesc.boxMax then
+local function buildFootprintFromTerrainAabb(terrainDesc, pos)
+    if not terrainDesc or not terrainDesc.boxMin or not terrainDesc.boxMax or not pos or not pos.p or not pos.x or not pos.z then
         return nil
     end
 
@@ -118,11 +118,15 @@ local function buildFootprintFromTerrainAabb(terrainDesc)
         return nil
     end
 
+    -- Re-center the box so any absolute/model-frame offsets don't leak into world coords.
+    local hx = math.abs(maxX - minX) * 0.5
+    local hz = math.abs(maxZ - minZ) * 0.5
+
     return {
-        { x = minX, z = minZ },
-        { x = maxX, z = minZ },
-        { x = maxX, z = maxZ },
-        { x = minX, z = maxZ },
+        toWorldXZ(pos.p, pos.x, pos.z, -hx, -hz),
+        toWorldXZ(pos.p, pos.x, pos.z,  hx, -hz),
+        toWorldXZ(pos.p, pos.x, pos.z,  hx,  hz),
+        toWorldXZ(pos.p, pos.x, pos.z, -hx,  hz),
     }
 end
 
@@ -200,7 +204,7 @@ local skipped_without_geometry = 0
 
 local missedByType = {}
 
-local terrainDescPerType = {}
+local terrainDescSamplePerType = {}
 
 ---@param object Object
 local function onObjectFound(object, _)
@@ -221,10 +225,6 @@ local function onObjectFound(object, _)
 
     -- Always get position (gives orientation as well as point)
     local pos = object:getPosition()   -- Position3: { p, x, y, z }
-
-    if terrainDescPerType[typeName] == nil then
-        terrainDescPerType[typeName] = getTerrainDescForType(typeName, pos) or false
-    end
 
     local feature = {
         typeName  = typeName,
@@ -247,13 +247,17 @@ local function onObjectFound(object, _)
         bbox = typeDesc.box
         bboxSource = "type"
     else
-        local terrainDesc = terrainDescPerType[typeName]
-        if terrainDesc and terrainDesc ~= false then
-            footprint = buildFootprintFromTerrainObb(terrainDesc)
+        local terrainDesc = getTerrainDescForType(typeName, pos)
+        if terrainDescSamplePerType[typeName] == nil then
+            terrainDescSamplePerType[typeName] = terrainDesc or false
+        end
+
+        if terrainDesc then
+            footprint = buildFootprintFromTerrainObb(terrainDesc, pos)
             if footprint then
                 bboxSource = "terrainObb"
             else
-                footprint = buildFootprintFromTerrainAabb(terrainDesc)
+                footprint = buildFootprintFromTerrainAabb(terrainDesc, pos)
                 if footprint then
                     bboxSource = "terrainAabb"
                 end
@@ -462,7 +466,7 @@ if terrainDir then ensureDir(terrainDir) end
 local terrainFile = io.open(terrainPath, "w+")
 if terrainFile then
     local rows = {}
-    for typeName, value in pairs(terrainDescPerType) do
+    for typeName, value in pairs(terrainDescSamplePerType) do
         local valueJson = "null"
         if value ~= false then
             valueJson = net.lua2json(value)

@@ -22,11 +22,16 @@
     cursor: pointer;
 }
 
-.grouping-item {
+.group-item {
     padding: 5px 10px;
 }
 
-.grouping-item:hover {
+.group-item.selected {
+    background-color: #555769;
+}
+
+.group-item:hover {
     background-color: #333545;
     cursor: pointer;
+    color : rgba(253, 255, 229, 0.205)
 }

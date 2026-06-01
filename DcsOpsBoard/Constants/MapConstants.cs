@@ -11,6 +11,8 @@ public static class MapConstants
     public const string ItemSelectableKey = "selectable";
     public const string ItemEditableKey = "editable";
 
+    public const string TypeKey = "$type";
+
     public const string FlightIdKey = "flight-id";
 
     public static class ShapeTypes

@@ -13,8 +13,10 @@
 @using DcsOpsBoard.Hubs
 @using DcsOpsBoard.Hubs.Clients
 @using DcsOpsBoard.Hubs.HubModels
+@using DcsOpsBoard.Hubs.MissionSync
 @using DcsOpsBoard.MissionEditing
 @using DcsOpsBoard.MissionEditing.RenderExtensions
+@using DcsOpsBoard.MissionEditing.RenderExtensions.Context
 @using DcsOpsBoard.Services
 @using DcsOpsBoard.Types
 @using DcsOpsBoard.Types.Enums
@@ -27,7 +29,7 @@
 @rendermode InteractiveServer
 
 @implements IDisposable
-
+@inject IMissionCache MissionCache
 @inject IMissionEditingClient MissionEditingClient
 @inject HubConnectionProvider<CursorHub> CursorHubProvider
 @inject IUserMapSettings UserMapSettings
@@ -44,8 +46,9 @@
     private Layer? _shaderLayer;
     private Layer? _detailedLayer;
     private Layer? _objectsLayer;
+    private Layer? _settlementsLayer;
 
-    private readonly MissionRenderState _renderState = new();
+    private DcsRenderContext _renderContext = null!; //Will be set when mission is loaded, which is before any real action
     
     private CursorHelper _cursorHelper = null!;
 
@@ -74,6 +77,15 @@
         Projection = "EPSG:3857"
     };
 
+    private object SettlementsTileSourceOptions = new
+    {
+        MaxZoom = 17,
+        MinZoom = 6,
+        TileSize = 512,
+        WrapX = false,
+        Projection = "EPSG:3857"
+    };
+
     private object DrawingLayerOptions = new 
     {
         updateWhileAnimating = true,
@@ -89,6 +101,7 @@
     {
         MissionEditingClient.OnMissionChanged += MissionChanged;
         MissionEditingClient.OnMissionReceived += MissionEditingClient_OnMissionReceived;
+        UnitSelectorService.OnGroupSelected += UnitSelectorService_OnGroupSelected;
 
         _cursorHelper = new CursorHelper
         {
@@ -104,10 +117,26 @@
 
         await JS.InvokeVoidAsync("dcsMap.setActiveMap", MissionEditingClient.CurrentMissionData?.Map.ToMapString());
 
-        _renderState.Clear();
-
         await _cursorHelper.JoinCursorsHub(MissionEditingClient.CurrentMissionData?.MissionId ?? Guid.Empty);
         await InvokeAsync(StateHasChanged);
+
+        if(_renderContext == null)
+        {
+            _renderContext = new DcsRenderContext
+            {
+                Map = _map,
+                RenderState = new MissionRenderState(),
+                CoordConverter = MissionEditingClient.CurrentMissionData!.Map.CoordConverter,
+                EditingClient = MissionEditingClient,
+                MissionCache = MissionCache,
+            };
+        } 
+        else 
+        {
+            _renderContext.CoordConverter = MissionEditingClient.CurrentMissionData!.Map.CoordConverter;
+            _renderContext.RenderState.Clear();
+            _renderContext.SelectedRefId = Guid.NewGuid();
+        }
 
         _cursorHelper.CursorLayer = _cursorLayer;
 
@@ -123,7 +152,7 @@
         await InvokeAsync(StateHasChanged);
         if(MissionEditingClient.CurrentMissionData != null && MissionEditingClient.CurrentMission != null)
         {
-            await MissionEditingClient.CurrentMission.RenderAsync(MissionEditingClient.CurrentRoleInMission, [], _map, _renderState, MissionEditingClient.CurrentMissionData.Map.CoordConverter);
+            await MissionEditingClient.CurrentMission.RenderAsync(_renderContext);
         }
        
     }
@@ -152,54 +181,32 @@
         _dotNetRef = DotNetObjectReference.Create(this);
         JS.InvokeVoidAsync("dcsMap.setRazorReference", _dotNetRef);
     }
-
-    private Dictionary<Guid, Shape> _drawnShapes = [];
     
     private UnitSelectedArgs? _lastSelectedUnit;
     private async Task UnitSelectorService_OnGroupSelected(UnitSelectedArgs args)
     {
+        _renderContext.SelectedRefId = Guid.Empty;
         if(_lastSelectedUnit != null)
         {
             if(_lastSelectedUnit.SelectedType == typeof(PlaneGroup) && _lastSelectedUnit.SelectedUnit is PlaneGroup lastGroup)
             {
-                
+                await lastGroup.RenderAsync(_renderContext);
             }
         }
 
         if(args.SelectedType == typeof(PlaneGroup) && args.SelectedUnit is PlaneGroup group)
         {
-            
+            _renderContext.SelectedRefId = group.RefId;
+            await group.RenderAsync(_renderContext);
         }
-    }
-
-    private async Task HandleMissionUpdate(IMissionCommand command)
-    {
-        
+        _lastSelectedUnit = args;
     }
     
-    public async Task SelectedShapeChanged(Shape shape)
-    {
-        if(shape == null)
-        {
-            return;
-        }
-        
-
-        shape.Properties.TryGetValue(MapConstants.ItemSelectableKey, out var selectableObj);
-        if (selectableObj is not bool selectable || !selectable)
-        {
-            shape.Layer.SelectedShape = null;
-            shape.Layer.UpdateLayer();
-            return;
-        }
-
-    }
-
     [JSInvokable]
     public async Task OnItemMoved(Guid featureId, double lon, double lat)
     {   
         
-        if(!_renderState.TryGetShape(featureId, out Shape? shape))
+        if(!_renderContext!.RenderState.TryGetShape(featureId, out Shape? shape))
         {
             Console.WriteLine($"Shape with id {featureId} not found");
             return;
@@ -216,7 +223,7 @@
     [JSInvokable]
     public async Task OnItemMoving(Guid featureId, double lon, double lat)
     {
-        if(!_renderState.TryGetShape(featureId, out Shape? shape))
+        if(!_renderContext.RenderState.TryGetShape(featureId, out Shape? shape))
         {
             Console.WriteLine($"Shape with id {featureId} not found");
             return;
@@ -228,22 +235,22 @@
         {
             if(shape.Properties.TryGetValue(MapConstants.FlightIdKey, out var flightIdObj) && flightIdObj is Guid flightId)
             {
-                if(_renderState.TryGetFlight(flightId, out PlaneGroup? flight))
+                if(_renderContext.RenderState.TryGetFlight(flightId, out PlaneGroup? flight))
                 {
+                    if(flight == null)
+                    {
+                        return;
+                    }
+
                     DcsPlanePoint? changedPoint = flight.Route.Points.FirstOrDefault(p => p.RefId == featureId);
                     
                     if(changedPoint != null)
                     {
-                        var coordConverter = MissionEditingClient.CurrentMissionData!.Map.CoordConverter;
-                        DcsCoord dcsCoord = coordConverter.LLtoLO(new LatLong{ Lat = lat, Lon = lon });
+                        DcsCoord dcsCoord = _renderContext.CoordConverter.LLtoLO(new LatLong{ Lat = lat, Lon = lon });
                         changedPoint.X = dcsCoord.X;
                         changedPoint.Y = dcsCoord.Y;
 
-                        // Update local only by redrawing the entire flight.
-                        if(_renderState.TryGetFlightCoalition(flightId, out CoalitionSide coalition))
-                        {
-                            await flight.RenderAsync(coalition, MissionEditingClient.CurrentRoleInMission, [], _map, _renderState, MissionEditingClient.CurrentMissionData!.Map.CoordConverter);
-                        }
+                        await flight.RenderAsync(_renderContext);
                     }
                 }
             }
@@ -271,13 +278,30 @@
     {
         return new StyleOptions
         {
-            Fill = new StyleOptions.FillOptions { Color = "rgba(255,0,255,0.5)" },
-            Stroke = new StyleOptions.StrokeOptions { Color = "#000", Width = 3 },
+            Fill = new StyleOptions.FillOptions { Color = "rgba(34, 28, 28, 0.637)" },
+            Stroke = new StyleOptions.StrokeOptions { Color = "rgba(34, 28, 28, 0.637)", Width = 0 },
             Circle = new StyleOptions.CircleStyleOptions
             {
                 Radius = 8,
-                Fill = new StyleOptions.FillOptions { Color = "rgba(255,255,0,0.5)" },
-                Stroke = new StyleOptions.StrokeOptions { Color = "#000000", Width = 2 }
+                Fill = new StyleOptions.FillOptions { Color = "rgba(34, 28, 28, 0.637)" },
+                Stroke = new StyleOptions.StrokeOptions { Color = "rgba(34, 28, 28, 0.637)", Width = 0 }
+            }
+        };
+    }
+
+     private StyleOptions GetSettlementsLayerStyle()
+    {
+        string color = "rgba(253, 255, 229, 0.150)";
+
+        return new StyleOptions
+        {
+            Fill = new StyleOptions.FillOptions { Color = color },
+            Stroke = new StyleOptions.StrokeOptions { Color = color, Width = 0 },
+            Circle = new StyleOptions.CircleStyleOptions
+            {
+                Radius = 8,
+                Fill = new StyleOptions.FillOptions { Color = color },
+                Stroke = new StyleOptions.StrokeOptions { Color = color, Width = 0 }
             }
         };
     }
@@ -310,26 +334,34 @@
 
                 <Layer @key="@($"base-layer-{MissionEditingClient.CurrentMissionData.MissionId}")"
                         @ref="_baseLayer" Id="base-layer" 
-                        Visibility="true"
+                        Visibility="@(UserMapSettings.ShowBaseLayer)"
                         SourceType="SourceType.XYZ" 
                         SourceOptions="BaseTileSourceOptions"
                        Url=@($"/api/tiles/{MissionEditingClient.CurrentMissionData.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") Format="image/webp" />
 
                 @* Detailed layer is loaded dynamically via JS to avoid unnecessary tile loading *@
                 <Layer @ref="_detailedLayer" Id="detailed-layer" SourceType="SourceType.XYZ"
+                        Visibility="@(UserMapSettings.ShowBaseLayer)"
                        SourceOptions="DetailedTileSourceOptions" MinZoom="15" Format="image/webp" />
 
                 <Layer @ref="_shaderLayer" Id="shader-layer" SourceOptions="ShaderTileSourceOptions"
                        Visibility="@(UserMapSettings.ShowElevationShader)"
                        Url=@($"/api/shaders/{MissionEditingClient.CurrentMissionData.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") MinZoom="6"
                        SourceType="SourceType.XYZ" Opacity="0.20" Format="image/webp" />
-                
-                <Layer @ref="_objectsLayer" Id="object-layer" 
+                       
+                 <Layer @ref="_settlementsLayer" Id="settlements-layer" 
+                    SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
+                    MinZoom="6" MaxZoom="17"
+                    SourceOptions="SettlementsTileSourceOptions"
+                    Style="@GetSettlementsLayerStyle()"
+                    Visibility="@(UserMapSettings.ShowBuildingObjects)" />
+
+                 <Layer @ref="_objectsLayer" Id="object-layer" 
                     SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
                     MinZoom="12" MaxZoom="17"
                     SourceOptions="VectorTileSourceOptions"
                     Style="@GetObjectLayerStyle()"
-                    Visibility="true" />
+                    Visibility="@(UserMapSettings.ShowBuildingObjects)" />
 
                 <Layer Id="@MapConstants.DrawingLayerId" 
                     LayerType="LayerType.Vector"

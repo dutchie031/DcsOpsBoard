@@ -1,18 +1,20 @@
 #right-menu-body {
     background-color: #222430e7;
     height: 90vh;
-    width: 5vw;
+    max-width: 5vw;
+    min-width: 5vw;
     overflow: hidden;
     position: absolute;
     top: 5vh;
     right: 0;
-    transition: width 0.3s ease;
+    transition: max-width 0.3s ease, min-width 0.3s ease;
     z-index: 300;
     direction: rtl;
 }
 
 #right-menu-body:hover {
-    width: 40vw;
+    min-width: 15vw;
+    max-width: 30vw;
 }
 
 #right-menu-header {

@@ -308,10 +308,10 @@ public class DetailedTileExporter(Map map, int minZoomLevel, int maxZoomLevel, s
     {
         var corners = new[]
         {
-            map.CoordConverter.LOtoLL(new() { X = sourceTile.MinX, Y = sourceTile.MinY }),
-            map.CoordConverter.LOtoLL(new() { X = sourceTile.MinX, Y = sourceTile.MaxY }),
-            map.CoordConverter.LOtoLL(new() { X = sourceTile.MaxX, Y = sourceTile.MinY }),
-            map.CoordConverter.LOtoLL(new() { X = sourceTile.MaxX, Y = sourceTile.MaxY })
+            _2dTileExporter.Utils.CoordConversion.SafeLOtoLL(map.CoordConverter, new() { X = sourceTile.MinX, Y = sourceTile.MinY }),
+            _2dTileExporter.Utils.CoordConversion.SafeLOtoLL(map.CoordConverter, new() { X = sourceTile.MinX, Y = sourceTile.MaxY }),
+            _2dTileExporter.Utils.CoordConversion.SafeLOtoLL(map.CoordConverter, new() { X = sourceTile.MaxX, Y = sourceTile.MinY }),
+            _2dTileExporter.Utils.CoordConversion.SafeLOtoLL(map.CoordConverter, new() { X = sourceTile.MaxX, Y = sourceTile.MaxY })
         };
 
         double minLon = corners.Min(corner => corner.Lon);

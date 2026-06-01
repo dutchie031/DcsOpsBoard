@@ -16,6 +16,7 @@
     <Folder Include="Controllers\" />
     <Folder Include="Hubs\Clients\" />
     <Folder Include="Hubs\HubModels\" />
+    <Folder Include="MissionEditing\RenderExtensions\Context\" />
     <Folder Include="Services\Discord\DTOs\" />
     <Folder Include="wwwroot\icons\" />
 

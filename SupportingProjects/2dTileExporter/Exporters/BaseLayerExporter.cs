@@ -62,34 +62,29 @@ public class BaseLayerExporter(Map map, int targetZoom,string sourceDirectory, s
 
         int chunkSize = (workItems.Count + threads - 1) / threads;
         List<List<(int x, int y)>> threadGroups = [.. Enumerable.Range(0, threads)
-            .Select(i => workItems.Skip(i * chunkSize).Take(chunkSize).ToList())];
+            .Select(i => workItems.Skip(i * chunkSize).Take(chunkSize).ToList())
+            .Where(group => group.Count > 0)];
 
+        using var cts = new CancellationTokenSource();
         List<Task> exportTasks = [];
         foreach (var group in threadGroups)
         {
-            exportTasks.Add(Task.Run(async () =>
-            {
-                try
-                {
-                    await ProcessTargetGroup(group, sourceLookup, sourceCatalog, global.TopLeft.X, global.TopLeft.Y, tileSpanMeters, zRoot);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error processing tile group: {ex}");
-                }
-            }));
+            exportTasks.Add(Task.Run(() => ProcessTargetGroup(group, sourceLookup, global.TopLeft.X, global.TopLeft.Y, tileSpanMeters, zRoot)));
         }
 
-        exportTasks.Add(Task.Run(LogProgress));
+        Task workerCompletion = Task.WhenAll(exportTasks);
+        Task logTask = Task.Run(() => LogProgress(cts.Token));
 
-        await Task.WhenAll(exportTasks);
+        await workerCompletion;
+        await cts.CancelAsync();
+        await logTask;
 
         Console.WriteLine("Export complete.");
     }
 
-    private async Task LogProgress()
+    private async Task LogProgress(CancellationToken cancellationToken)
     {
-        while (Volatile.Read(ref processed) < totalTiles)
+        while (!cancellationToken.IsCancellationRequested && Volatile.Read(ref processed) < totalTiles)
         {
             int done = Volatile.Read(ref processed);
             TimeSpan elapsed = DateTime.Now - startTime;
@@ -107,7 +102,14 @@ public class BaseLayerExporter(Map map, int targetZoom,string sourceDirectory, s
             }
 
             Console.WriteLine($"Progress: {done}/{totalTiles} tiles processed... ETA: {etaString}");
-            await Task.Delay(5000);
+            try
+            {
+                await Task.Delay(5000, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
         }
 
         Console.WriteLine($"Progress: {totalTiles}/{totalTiles} tiles processed... ETA: 00:00:00");
@@ -116,7 +118,6 @@ public class BaseLayerExporter(Map map, int targetZoom,string sourceDirectory, s
     private async Task ProcessTargetGroup(
         List<(int x, int y)> workItems,
         Dictionary<long, SourceTile> sourceLookup,
-        Dictionary<int, SourceTile> sourceByIndex,
         int topLeftX,
         int topLeftY,
         int tileSpanMeters,
@@ -127,66 +128,75 @@ public class BaseLayerExporter(Map map, int targetZoom,string sourceDirectory, s
 
         foreach (var (xTile, yTile) in workItems)
         {
-            // When moving to a new x column, source tiles from the previous column
-            // are no longer needed — clear cache to bound memory usage.
-            if (xTile != currentX)
+            try
             {
-                localCache.Clear();
-                currentX = xTile;
-            }
-
-            string xDir = Path.Combine(zRoot, xTile.ToString());
-            Directory.CreateDirectory(xDir);
-
-            using var image = new Image<Rgb24>(OutputTileSize, OutputTileSize);
-
-            double[] lonByPx = BuildLonLookup(xTile);
-            double[] latByPy = BuildLatLookup(yTile);
-
-            image.ProcessPixelRows(accessor =>
-            {
-                for (int py = 0; py < OutputTileSize; py++)
+                // When moving to a new x column, source tiles from the previous column
+                // are no longer needed — clear cache to bound memory usage.
+                if (xTile != currentX)
                 {
-                    var row = accessor.GetRowSpan(py);
-                    double lat = latByPy[py];
-
-                    for (int px = 0; px < OutputTileSize; px++)
-                    {
-                        double lon = lonByPx[px];
-                        var local = map.CoordConverter.LLtoLO(new LatLong { Lat = lat, Lon = lon });
-
-                        if (!TryResolveSourceTile(sourceLookup, topLeftX, topLeftY, tileSpanMeters, local.X, local.Y, out SourceTile? sourceTile) || sourceTile is null)
-                        {
-                            row[px] = new Rgb24(0, 0, 0);
-                            continue;
-                        }
-
-                        if (!TryGetSampleIndex(sourceTile, local.X, local.Y, out int idx))
-                        {
-                            row[px] = new Rgb24(0, 0, 0);
-                            continue;
-                        }
-
-                        if (!localCache.TryGetValue(sourceTile.TileIndex, out var terrain))
-                        {
-                            terrain = TerrainTypeReader.ReadAll(sourceTile.TerrainDataPath);
-                            localCache[sourceTile.TileIndex] = terrain;
-                        }
-                        var (r, g, b) = terrain[idx].ToDefaultColor(map);
-                        row[px] = new Rgb24((byte)r, (byte)g, (byte)b);
-                    }
+                    localCache.Clear();
+                    currentX = xTile;
                 }
-            });
 
-            string outputPath = Path.Combine(xDir, $"{yTile}.webp");
-            await image.SaveAsync(outputPath, new WebpEncoder
+                string xDir = Path.Combine(zRoot, xTile.ToString());
+                Directory.CreateDirectory(xDir);
+
+                using var image = new Image<Rgba32>(OutputTileSize, OutputTileSize);
+
+                double[] lonByPx = BuildLonLookup(xTile);
+                double[] latByPy = BuildLatLookup(yTile);
+
+                image.ProcessPixelRows(accessor =>
+                {
+                    for (int py = 0; py < OutputTileSize; py++)
+                    {
+                        var row = accessor.GetRowSpan(py);
+                        double lat = latByPy[py];
+
+                        for (int px = 0; px < OutputTileSize; px++)
+                        {
+                            double lon = lonByPx[px];
+                            var local = map.CoordConverter.LLtoLO(new LatLong { Lat = lat, Lon = lon });
+
+                            if (!TryResolveSourceTile(sourceLookup, topLeftX, topLeftY, tileSpanMeters, local.X, local.Y, out SourceTile? sourceTile) || sourceTile is null)
+                            {
+                                row[px] = new Rgba32(0, 0, 0, 0);
+                                continue;
+                            }
+
+                            if (!TryGetSampleIndex(sourceTile, local.X, local.Y, out int idx))
+                            {
+                                row[px] = new Rgba32(0, 0, 0, 0);
+                                continue;
+                            }
+
+                            if (!localCache.TryGetValue(sourceTile.TileIndex, out var terrain))
+                            {
+                                terrain = TerrainTypeReader.ReadAll(sourceTile.TerrainDataPath);
+                                localCache[sourceTile.TileIndex] = terrain;
+                            }
+                            var (r, g, b) = terrain[idx].ToDefaultColor(map);
+                            row[px] = new Rgba32((byte)r, (byte)g, (byte)b, 255);
+                        }
+                    }
+                });
+
+                string outputPath = Path.Combine(xDir, $"{yTile}.webp");
+                await image.SaveAsync(outputPath, new WebpEncoder
+                {
+                    FileFormat = WebpFileFormatType.Lossy,
+                    Quality = WebpQuality,
+                    Method = WebpEncodingMethod.BestQuality
+                });
+            }
+            catch (Exception ex)
             {
-                FileFormat = WebpFileFormatType.Lossy,
-                Quality = WebpQuality,
-                Method = WebpEncodingMethod.BestQuality
-            });
-
-            Interlocked.Increment(ref processed);
+                Console.WriteLine($"[WARN] Failed to render base tile {xTile}/{yTile} z{TargetZoom}: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Increment(ref processed);
+            }
         }
     }
 

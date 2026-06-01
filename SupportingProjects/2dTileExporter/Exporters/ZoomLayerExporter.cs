@@ -124,17 +124,17 @@ public class ZoomLayerExporter(int baseZoom, int minZoom, string tilesRoot)
             (2 * x + 1, 2 * y + 1, TileSize, TileSize),
         ];
 
-        using var canvas = new Image<Rgb24>(TileSize * 2, TileSize * 2);
+        using var canvas = new Image<Rgba32>(TileSize * 2, TileSize * 2);
 
         foreach (var (cx, cy, ox, oy) in children)
         {
             string childPath = Path.Combine(sourceZoomDir, cx.ToString(), $"{cy}.webp");
             if (File.Exists(childPath))
             {
-                using var child = await Image.LoadAsync<Rgb24>(childPath);
+                using var child = await Image.LoadAsync<Rgba32>(childPath);
                 canvas.Mutate(ctx => ctx.DrawImage(child, new Point(ox, oy), 1f));
             }
-            // Missing children remain black (default Rgb24 background)
+            // Missing children remain transparent on the RGBA canvas.
         }
 
         // Downsample 512→256 with Lanczos3 for quality

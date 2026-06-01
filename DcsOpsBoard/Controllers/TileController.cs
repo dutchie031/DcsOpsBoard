@@ -101,4 +101,29 @@ public class TileController : ControllerBase
         }
         return PhysicalFile(filePath, "application/json");
     }
+
+     [HttpGet("settlements/{map}/{z}/{x}/{y}.mvt")]
+    public IActionResult GetSettlementsTile(string map, int z, int x, int y)
+    {
+        //TODO UPDATE CACHE ONES TILES ARE CORRECT
+        this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=1, immutable";
+        string filePath = Path.Combine(BaseDirectory, map, "settlements", z.ToString(), x.ToString(), $"{y}.mvt");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NoContent();
+        }
+        return PhysicalFile(filePath, "application/vnd.mapbox-vector-tile");
+    }
+
+    [HttpGet("settlements/{map}/coverage.json")]
+    public IActionResult GetSettlementsCoverage(string map)
+    {
+        this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=3600"; // 1 hour cache for coverage data
+        string filePath = Path.Combine(BaseDirectory, map, "settlements", "coverage.json");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NoContent();
+        }
+        return PhysicalFile(filePath, "application/json");
+    }
 }

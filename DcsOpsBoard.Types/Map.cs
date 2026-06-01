@@ -74,20 +74,27 @@ public static class MapExtensions
             }
         }
 
-        public MapLimits Limits => map switch
+        public MapLimits Limits => map.GetLimits();
+    }
+
+    private static MapLimits GetLimits(this Map map)
+    {
+        switch(map)
         {
-            Map.Caucasus => new MapLimits
-            {
-                BottomLeft = map.CoordConverter.LOtoLL(new() { X = -450000, Y = 0 }),
-                TopRight =  map.CoordConverter.LOtoLL(new() { X = 65000, Y = 950000 }),
-            },
-            Map.Kola => new MapLimits
-            {
-                BottomLeft = map.CoordConverter.LOtoLL(new() { X = -314667, Y = -671814 }),
-                TopRight = map.CoordConverter.LOtoLL(new() { X = 584915, Y = 855667 })
-            },
-            _ => throw new ArgumentOutOfRangeException(nameof(map), $"No limits defined for map {map}")
-        };
+            case Map.Caucasus:
+                {
+                    LatLong topLeft = map.CoordConverter.LOtoLL(new() { X = 65000, Y = 0 });
+                    LatLong bottomRight = map.CoordConverter.LOtoLL(new() { X = -450000, Y = 950000 });
+
+                    return new MapLimits
+                    {
+                        BottomLeft = new LatLong { Lat = bottomRight.Lat, Lon = topLeft.Lon },
+                        TopRight = new LatLong { Lat = topLeft.Lat, Lon = bottomRight.Lon }
+                    };
+                }
+            default: 
+                throw new ArgumentOutOfRangeException(nameof(map), $"No limits defined for map {map}");   
+        }
     }
 
 }

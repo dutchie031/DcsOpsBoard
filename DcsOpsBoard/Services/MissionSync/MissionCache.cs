@@ -1,6 +1,8 @@
 using System;
 using DcsMissionParser.Net;
+using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
 using DcsOpsBoard.Database.Services;
+using DcsOpsBoard.Types.Enums;
 
 namespace DcsOpsBoard.Hubs.MissionSync;
 
@@ -8,6 +10,8 @@ namespace DcsOpsBoard.Hubs.MissionSync;
 public interface IMissionCache
 {
     Task<DcsMission?> GetMission(Guid missionId);
+    Task<CoalitionSide> GetCoalitionForGroup(Guid missionId, Guid groupId);
+    Task<CoalitionSide> GetCoalitionForUnit(Guid missionId, Guid groupId);
     Task UpdateMission(Guid missionId, Action<DcsMission> updateAction);
 
     Task PersistMissions();
@@ -17,6 +21,7 @@ public interface IMissionCache
 public class MissionCache(IMissionStorageManager _missionStorageManager) : BackgroundService, IMissionCache
 {
     private readonly Dictionary<Guid, DcsMission> _missionCache = [];
+    private readonly Dictionary<Guid, CoalitionCache> _coalitionCache = [];
     private readonly Dictionary<Guid, DateTime> _lastAccessed = [];
     private readonly Dictionary<Guid, bool> _dirtyFlags = [];
 
@@ -40,12 +45,17 @@ public class MissionCache(IMissionStorageManager _missionStorageManager) : Backg
     public async Task<DcsMission?> GetMission(Guid missionId)
     {
         _lastAccessed[missionId] = DateTime.UtcNow;
-        if (_missionCache.TryGetValue(missionId, out DcsMission? mission))
+        if (!_missionCache.TryGetValue(missionId, out DcsMission? mission))
         {
-            return mission;
+            mission = await _missionStorageManager.GetMission(missionId);
+            if (mission != null)
+            {
+                _missionCache[missionId] = mission;
+                _coalitionCache[missionId] = new CoalitionCache(mission);
+            }
         }
         
-        return await _missionStorageManager.GetMission(missionId);
+        return mission;
     }
 
     public async Task PersistMissions()
@@ -94,6 +104,153 @@ public class MissionCache(IMissionStorageManager _missionStorageManager) : Backg
             {
                 // Log error but continue loop
                 Console.Error.WriteLine($"Error in persist loop: {ex}");
+            }
+        }
+    }
+
+    public async Task<CoalitionSide> GetCoalitionForGroup(Guid missionId,Guid groupId)
+    {
+        if(!_coalitionCache.TryGetValue(groupId, out CoalitionCache? coalitionCache))
+        {
+            DcsMission mission = await GetMission(missionId) ?? throw new InvalidOperationException("Mission not found");
+            _coalitionCache[groupId] = new CoalitionCache(mission);
+            coalitionCache = _coalitionCache[groupId];
+        }
+
+        if(coalitionCache.CoalitionPerId.TryGetValue(groupId, out CoalitionSide coalition))
+        {
+            return coalition;
+        }
+        else
+        {
+            DcsMission mission = await GetMission(missionId) ?? throw new InvalidOperationException("Mission not found");
+            foreach(PlaneGroup group in mission.Coalitions.Blue?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                coalitionCache.CoalitionPerId[groupId] = CoalitionSide.Blue;
+                foreach(var unit in group.Units)
+                {
+                    coalitionCache.CoalitionPerId[unit.RefId] = CoalitionSide.Blue;
+                    return CoalitionSide.Blue;
+                }
+                return CoalitionSide.Blue;
+            }
+
+            foreach(PlaneGroup group in mission.Coalitions.Red?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                coalitionCache.CoalitionPerId[groupId] = CoalitionSide.Red;
+                foreach(var unit in group.Units)
+                {
+                    coalitionCache.CoalitionPerId[unit.RefId] = CoalitionSide.Red;
+                    return CoalitionSide.Red;
+                }
+                return CoalitionSide.Red;
+            }
+
+            foreach(PlaneGroup group in mission.Coalitions.Neutrals?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                coalitionCache.CoalitionPerId[groupId] = CoalitionSide.Neutral;
+                foreach(var unit in group.Units)
+                {
+                    coalitionCache.CoalitionPerId[unit.RefId] = CoalitionSide.Neutral;
+                    return CoalitionSide.Neutral;
+                }
+                return CoalitionSide.Neutral;
+            }
+        }
+        return CoalitionSide.Unknown;
+    }
+
+    public async Task<CoalitionSide> GetCoalitionForUnit(Guid missionId,Guid groupId)
+    {
+        if(!_coalitionCache.TryGetValue(groupId, out CoalitionCache? coalitionCache))
+        {
+            DcsMission mission = await GetMission(missionId) ?? throw new InvalidOperationException("Mission not found");
+            _coalitionCache[groupId] = new CoalitionCache(mission);
+            coalitionCache = _coalitionCache[groupId];
+        }
+
+        if(coalitionCache.CoalitionPerId.TryGetValue(groupId, out CoalitionSide coalition))
+        {
+            return coalition;
+        }
+        else
+        {
+            DcsMission mission = await GetMission(missionId) ?? throw new InvalidOperationException("Mission not found");
+            foreach(PlaneGroup group in mission.Coalitions.Blue?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                if(group.RefId == groupId)
+                {
+                    coalitionCache.CoalitionPerId[groupId] = CoalitionSide.Blue;
+                    foreach(var unit in group.Units)
+                    {
+                        coalitionCache.CoalitionPerId[unit.RefId] = CoalitionSide.Blue;
+                    }
+                    return CoalitionSide.Blue;
+                }
+            }
+
+            foreach(PlaneGroup group in mission.Coalitions.Red?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                if(group.RefId == groupId)
+                {
+                    coalitionCache.CoalitionPerId[groupId] = CoalitionSide.Red;
+                    foreach(var unit in group.Units)
+                    {
+                        coalitionCache.CoalitionPerId[unit.RefId] = CoalitionSide.Red;
+                    }
+                    return CoalitionSide.Red;
+                }
+            }
+
+            foreach(PlaneGroup group in mission.Coalitions.Neutrals?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                if(group.RefId == groupId)
+                {
+                    coalitionCache.CoalitionPerId[groupId] = CoalitionSide.Neutral;
+                    foreach(var unit in group.Units)
+                    {
+                        coalitionCache.CoalitionPerId[unit.RefId] = CoalitionSide.Neutral;
+                    }
+                    return CoalitionSide.Neutral;
+                }
+            }
+        }
+        return CoalitionSide.Unknown;        
+    }
+
+
+    private class CoalitionCache
+    {
+        public Dictionary<Guid, CoalitionSide> CoalitionPerId { get; } = [];
+
+
+        public CoalitionCache(DcsMission mission)
+        {
+            foreach(PlaneGroup group in mission.Coalitions.Blue?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                CoalitionPerId[group.RefId] = CoalitionSide.Blue;
+                foreach(var unit in group.Units)
+                {
+                    CoalitionPerId[unit.RefId] = CoalitionSide.Blue;
+                }
+            }
+
+            foreach(PlaneGroup group in mission.Coalitions.Red?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                CoalitionPerId[group.RefId] = CoalitionSide.Red;
+                foreach(var unit in group.Units)
+                {
+                    CoalitionPerId[unit.RefId] = CoalitionSide.Red;
+                }
+            }
+
+            foreach(PlaneGroup group in mission.Coalitions.Neutrals?.Countries.SelectMany(c => c.Planes.Groups) ?? [])
+            {
+                CoalitionPerId[group.RefId] = CoalitionSide.Neutral;
+                foreach(var unit in group.Units)
+                {
+                    CoalitionPerId[unit.RefId] = CoalitionSide.Neutral;
+                }
             }
         }
     }

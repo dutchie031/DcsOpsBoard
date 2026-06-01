@@ -10,20 +10,21 @@ using Point = DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Point;
 using DcsMissionParser.Net.Objects.Coalitions.Units.Plane;
 using DcsMissionParser.Net.CoordMapping;
 using DcsOpsBoard.Components.PlanningComponents.HelperClasses;
+using DcsOpsBoard.MissionEditing.RenderExtensions.Context;
 
 namespace DcsOpsBoard.MissionEditing.RenderExtensions;
 
 public static class FlightExtensions
 {
-    public static async Task RenderAsync(this PlaneGroup group, CoalitionSide side, RoleType role, List<string> ownedFlights, OpenLayers.Blazor.Map map, MissionRenderState renderState, CoordConverter coordConverter)
+    public static async Task RenderAsync(this PlaneGroup group, DcsRenderContext context)
     {
         
-        Layer? nonEditableLayer = map.LayersList.FirstOrDefault(l => l.Id == MapConstants.NonEditableFlightsLayerId);
+        Layer? nonEditableLayer = context.Map.LayersList.FirstOrDefault(l => l.Id == MapConstants.NonEditableFlightsLayerId);
         Layer? editableLayer = nonEditableLayer;
-
-        if(role == RoleType.Admin || role == RoleType.Editor || ownedFlights.Contains(group.GroupName))
+        
+        if(context.EditingClient.CurrentRoleInMission is RoleType.Admin or RoleType.Editor || context.EditingClient.OwnedFlights.Contains(group.GroupName))
         {
-            editableLayer = map.LayersList.FirstOrDefault(l => l.Id == MapConstants.EditableFlightsLayerId);
+            editableLayer = context.Map.LayersList.FirstOrDefault(l => l.Id == MapConstants.EditableFlightsLayerId);
         }
 
         if(nonEditableLayer is null || editableLayer is null)
@@ -31,22 +32,23 @@ public static class FlightExtensions
             return;
         }
 
-        renderState.AddFlight(group.RefId, group, side);
-        
+        context.RenderState.AddFlight(group.RefId, group);
+        bool selected = context.SelectedRefId == group.RefId;
+        CoalitionSide side = await context.MissionCache.GetCoalitionForGroup(context.EditingClient.CurrentMissionData!.MissionId, group.RefId);
 
         //Render: Units as SVG files. 
 
         //Render: Route as a line 
-        await group.Route.RenderAsync(group.RefId, side, role, ownedFlights.Contains(group.GroupName), nonEditableLayer, renderState, coordConverter);
+        await group.Route.RenderAsync(group.RefId, nonEditableLayer, context.RenderState, context.CoordConverter, selected, side);
 
         //Render: Each waypoint as a point with the waypoint number. (this should be draggable)
         foreach(Point waypoint in group.Route.Points)
         {
-            await waypoint.RenderAsync(group.RefId, side, role, ownedFlights.Contains(group.GroupName), editableLayer, renderState, coordConverter);
+            await waypoint.RenderAsync(group.RefId, editableLayer, context.RenderState, context.CoordConverter, selected, side);
         }        
     }
 
-    private static async Task RenderAsync(this Route route, Guid flightId,  CoalitionSide side, RoleType role, bool editable, Layer layer, MissionRenderState renderState, CoordConverter coordConverter)
+    private static async Task RenderAsync(this Route route, Guid flightId, Layer layer, MissionRenderState renderState, CoordConverter coordConverter, bool selected, CoalitionSide side)
     {
         if(!renderState.TryGetShape(route.RefId, out Shape? cachedShape))
         {
@@ -74,18 +76,32 @@ public static class FlightExtensions
                 return new Coordinate(converted.Lon, converted.Lat);
             })];
 
-        line.Stroke = "rgba(238, 255, 0, 0.77)";
+        if(selected)
+        {
+            line.Stroke = "rgba(238, 255, 0, 0.77)";
+        } 
+        else if(side == CoalitionSide.Blue)
+        {
+            line.Stroke = "rgba(16, 95, 243, 0.49)";
+        }
+        else if(side == CoalitionSide.Red)
+        {
+            line.Stroke = "rgba(255, 0, 0, 0.77)";
+        }
+        else
+        {
+            line.Stroke = "rgba(255, 255, 255, 0.77)";
+        }
+       
 
-        line.StrokeThickness = 3;
+        line.StrokeThickness = selected ? 4 : 2;
 
         line.Properties[MapConstants.FlightIdKey] = flightId;
-        line.Properties[MapConstants.ItemEditableKey] = editable; //Should probably be false as the route shouldn't be editable
 
-        line.UpdateShape();
-        
+        await line.UpdateShape();
     }
 
-    private static async Task RenderAsync(this Point waypoint, Guid flightId, CoalitionSide side, RoleType role, bool editable, Layer layer, MissionRenderState renderState, CoordConverter coordConverter)
+    private static async Task RenderAsync(this Point waypoint, Guid flightId, Layer layer, MissionRenderState renderState, CoordConverter coordConverter, bool selected, CoalitionSide side)
     {
         if(!renderState.TryGetShape(waypoint.RefId, out Shape? cachedShape))
         {
@@ -112,11 +128,10 @@ public static class FlightExtensions
         var converted = coordConverter.LOtoLL(coord);
         point.Coordinate = new Coordinate(converted.Lon, converted.Lat);
         point.Stroke = "rgba(238, 255, 0, 0.77)";
-        point.Radius = 5;
+        point.Radius = selected ? 7 : 2;
 
-        point.Properties["$type"] = MapConstants.ShapeTypes.FlightWaypoint;
+        point.Properties[MapConstants.TypeKey] = MapConstants.ShapeTypes.FlightWaypoint;
         point.Properties[MapConstants.FlightIdKey] = flightId;
-        point.Properties[MapConstants.ItemEditableKey] = editable;
 
         await point.UpdateShape();
 

@@ -9,7 +9,6 @@ public class MissionRenderState
 {
     private readonly Dictionary<Guid, Shape> _drawnShapes = [];
     private readonly Dictionary<Guid, PlaneGroup> _drawnFlights = [];
-    private readonly Dictionary<Guid, CoalitionSide> _flightCoalitions = [];
 
     public void AddShape(Guid shapeId, Shape shape)
     {
@@ -21,10 +20,9 @@ public class MissionRenderState
         return _drawnShapes.TryGetValue(shapeId, out shape);
     }
 
-    public void AddFlight(Guid flightId, PlaneGroup group, CoalitionSide coalition)
+    public void AddFlight(Guid flightId, PlaneGroup group)
     {
         _drawnFlights[flightId] = group;
-        _flightCoalitions[flightId] = coalition;
     }
 
     public bool TryGetFlight(Guid flightId, out PlaneGroup? group)
@@ -32,16 +30,10 @@ public class MissionRenderState
         return _drawnFlights.TryGetValue(flightId, out group);
     }
 
-    public bool TryGetFlightCoalition(Guid flightId, out CoalitionSide coalition)
-    {
-        return _flightCoalitions.TryGetValue(flightId, out coalition);
-    }
-     
     public void Clear()
     {
         _drawnShapes.FirstOrDefault().Value?.Map?.ShapesList.Clear();
         _drawnShapes.Clear();
         _drawnFlights.Clear();
-        _flightCoalitions.Clear();
     }
 }

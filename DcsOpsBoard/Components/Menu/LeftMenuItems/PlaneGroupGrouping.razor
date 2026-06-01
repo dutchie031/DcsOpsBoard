@@ -1,4 +1,7 @@
 ﻿@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
+@using DcsOpsBoard.Services
+
+@inject IUnitSelectorService UserSelectorService
 
 @code {
 
@@ -9,6 +12,26 @@
     public required List<PlaneGroup> Groups { get; set; }
 
     private bool IsExpanded { get; set; } = false;
+
+    private Guid SelectedId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        UserSelectorService.OnGroupSelected += OnSelectionChanged;
+    }
+
+    public async Task OnSelectionChanged(UnitSelectedArgs args)
+    {
+        if(args.SelectedType == typeof(PlaneGroup) && args.SelectedUnit is PlaneGroup group)
+        {
+            SelectedId = group.RefId;
+        }
+        else
+        {
+            SelectedId = Guid.Empty;
+        }
+        StateHasChanged();
+    }
 
 }
 
@@ -29,7 +52,7 @@
         <div class="col-12">
             @foreach(var group in Groups)
             {
-                <div class="grouping-item" @key="group.RefId">
+                <div class="group-item @(group.RefId == SelectedId ? "selected" : "")" @key="group.RefId" @onclick="() => UserSelectorService.SelectPlaneGroup(group)">
                     <div class="container-fluid">
                         <div class="row">
                             <div class="col-12">
@@ -41,7 +64,6 @@
                                 <span>@group.Units.Count() Units</span>
                             </div>
                         </div>
-                       
                     </div>
                     
                 </div>

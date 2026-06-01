@@ -15,6 +15,7 @@ public interface IMissionEditingClient
     public DcsMission? CurrentMission { get; }
     public OpsPlanningMission? CurrentMissionData { get; }
     public RoleType CurrentRoleInMission { get; }
+    public List<string> OwnedFlights { get; }
     public event Func<Task> OnMissionChanged;
     public event Func<Task> OnMissionReceived;
     public event Func<IMissionCommand, Task> OnCommandReceived;
@@ -34,6 +35,7 @@ public class MissionEditingClient : IMissionEditingClient
     public DcsMission? CurrentMission { get; private set; }
     public OpsPlanningMission? CurrentMissionData { get; private set; }
     public RoleType CurrentRoleInMission { get; private set; } = RoleType.Unknown;
+    public List<string> OwnedFlights { get; private set; } = [];
 
 
     public event Func<Task> OnMissionChanged = () => Task.CompletedTask;
