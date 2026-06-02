@@ -1,7 +1,10 @@
 ﻿@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
+@using DcsOpsBoard.Components.Modals.FlightModals
+@using DcsOpsBoard.Components.PlanningComponents.ShapeTypes
 @using DcsOpsBoard.Services
 
-@inject IUnitSelectorService UserSelectorService
+@inject ISelectorService UserSelectorService
+@inject IFlightModalService FlightModalService
 
 @code {
 
@@ -17,20 +20,33 @@
 
     protected override async Task OnInitializedAsync()
     {
-        UserSelectorService.OnGroupSelected += OnSelectionChanged;
+        UserSelectorService.OnObjectSelected += OnSelectionChanged;
     }
 
-    public async Task OnSelectionChanged(UnitSelectedArgs args)
+    public async Task OnSelectionChanged(ObjectSelectedArgs args)
     {
-        if(args.SelectedType == typeof(PlaneGroup) && args.SelectedUnit is PlaneGroup group)
+        if(args.SelectedObjectRefId != Guid.Empty)
         {
-            SelectedId = group.RefId;
+            SelectedId = args.SelectedObjectRefId;
         }
         else
         {
             SelectedId = Guid.Empty;
         }
         StateHasChanged();
+    }
+
+    public async Task ToggleSelection(PlaneGroup group)
+    {
+        if(group.RefId == SelectedId)
+        {
+            await UserSelectorService.UnselectAll();
+        } 
+        else
+        {
+            await UserSelectorService.SelectRefId(group.RefId, DcsShapeType.Group);
+            await FlightModalService.ShowEditFlightModal(group, false);
+        }
     }
 
 }
@@ -40,11 +56,10 @@
     <div class="row">
         <div class="col-12">
             <div class="grouping-header" @onclick="() => IsExpanded = !IsExpanded">
-                <h3>
+                <h5>
                     <span>@GroupingName</span>
                     <span class="expand-icon">@((IsExpanded) ? "-" : "+")</span>
-                </h3>
-               
+                </h5>
             </div>
         </div>
     </div>
@@ -52,7 +67,7 @@
         <div class="col-12">
             @foreach(var group in Groups)
             {
-                <div class="group-item @(group.RefId == SelectedId ? "selected" : "")" @key="group.RefId" @onclick="() => UserSelectorService.SelectPlaneGroup(group)">
+                <div class="group-item @(group.RefId == SelectedId ? "selected" : "")" @key="group.RefId" @onclick="() => ToggleSelection(group)">
                     <div class="container-fluid">
                         <div class="row">
                             <div class="col-12">

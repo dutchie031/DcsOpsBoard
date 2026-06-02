@@ -1,6 +1,7 @@
 using System;
 using DcsMissionParser.Net;
 using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
+using DcsMissionParser.Net.Objects.Drawing;
 using DcsOpsBoard.Components.PlanningComponents.HelperClasses;
 using DcsOpsBoard.Database.Enums;
 using DcsOpsBoard.Hubs.Clients;
@@ -39,7 +40,6 @@ public static class DcsMissionExtensions
         {
             await mission.Drawings.RenderAsync(context);
         }
-        
     }
 
     private static async Task RenderAsync(this DcsMissionParser.Net.Objects.Drawing.Drawings drawings, DcsRenderContext context)
@@ -68,9 +68,9 @@ public static class DcsMissionExtensions
                         await obj.RenderAsync(context);
                     }
                 } 
-                else if(layer.Name?.Equals("author", StringComparison.OrdinalIgnoreCase) == true && role is RoleType.Admin or RoleType.Editor)
+                else if(layer.Name?.Equals("author", StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    foreach(DcsMissionParser.Net.Objects.Drawing.DrawingObject obj in layer.Objects)
+                    foreach(DcsMissionParser.Net.Objects.Drawing.DrawingObject obj in layer.Objects.Where(o => o.PrimitiveType != PrimitiveType.TextBox))
                     {
                         await obj.RenderAsync(context);
                     }

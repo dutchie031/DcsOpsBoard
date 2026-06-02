@@ -15,9 +15,4 @@ public static class MapConstants
 
     public const string FlightIdKey = "flight-id";
 
-    public static class ShapeTypes
-    {
-        public const string FlightWaypoint = "flight-waypoint";
-    }
-
 }

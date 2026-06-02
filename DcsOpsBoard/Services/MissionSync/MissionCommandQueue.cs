@@ -4,14 +4,14 @@ using DcsOpsBoard.Hubs.MissionSync;
 using DcsOpsBoard.MissionEditing;
 using DcsOpsBoard.Services.MissionSync;
 
-public class MissionCommandQueue(IMissionCache _cache): IHostedService
+public class MissionCommandQueue(IMissionCache _cache) : IHostedService
 {
     private readonly ConcurrentDictionary<Guid, Channel<CommandQueueItem>> _missionChannels = [];
     private readonly ConcurrentDictionary<Guid, Task> _processorTasks = [];
     private readonly CancellationTokenSource _shutdownTokenSource = new();
 
     public record CommandQueueItem(
-        IMissionCommand Command, 
+        IMissionCommand Command,
         TaskCompletionSource<CommandResult> ResultTcs
     );
 
@@ -19,16 +19,16 @@ public class MissionCommandQueue(IMissionCache _cache): IHostedService
     {
         // Get or create channel for this mission
         var channel = _missionChannels.GetOrAdd(
-            command.MissionId, 
+            command.MissionId,
             _ => CreateChannelForMission(command.MissionId)
         );
 
         // Create result awaiter
         var resultTcs = new TaskCompletionSource<CommandResult>();
-        
+
         // Enqueue with result tracking
         await channel.Writer.WriteAsync(new CommandQueueItem(command, resultTcs));
-        
+
         // Wait for processing to complete
         return await resultTcs.Task;
     }
@@ -44,36 +44,37 @@ public class MissionCommandQueue(IMissionCache _cache): IHostedService
         // Start dedicated processor for this mission
         var processorTask = ProcessMissionCommands(missionId, channel);
         _processorTasks[missionId] = processorTask;
-        
+
         return channel;
     }
 
     private async Task ProcessMissionCommands(
-        Guid missionId, 
+        Guid missionId,
         Channel<CommandQueueItem> channel)
     {
         await foreach (var item in channel.Reader.ReadAllAsync(_shutdownTokenSource.Token))
         {
             try
             {
-                // Get the Mission
-                var mission = await _cache.GetMission(missionId);
-                if (mission == null)                
+                await _cache.UpdateMission(missionId, item.Command.MissionStateId, mission =>
                 {
-                    item.ResultTcs.SetResult(CommandResult.Failure("Mission not found"));
-                    continue;
-                }
-                
-                // Complete the result task
-                var result = await item.Command.ApplyToMission(mission);
-                item.ResultTcs.SetResult(result);
+                    var result = item.Command.ApplyToMission(mission).GetAwaiter().GetResult();
+                    item.ResultTcs.SetResult(result);
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                item.ResultTcs.SetResult(CommandResult.Failure($"Mission is not in sync: {ex.Message}"));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                item.ResultTcs.SetResult(CommandResult.Failure($"Mission not found: {ex.Message}"));
             }
             catch (Exception ex)
             {
-                item.ResultTcs.SetResult(CommandResult.Failure(ex.Message));
+                item.ResultTcs.SetResult(CommandResult.Failure($"Unexpected error in mission update: {ex.Message}"));
             }
         }
-        
     }
 
     public void RemoveMission(Guid missionId)
@@ -93,16 +94,16 @@ public class MissionCommandQueue(IMissionCache _cache): IHostedService
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-   
+
         // Signal shutdown to all processors
         _shutdownTokenSource.Cancel();
-        
+
         // Complete all channels
         foreach (var channel in _missionChannels.Values)
         {
             channel.Writer.Complete();
         }
-        
+
         // Wait for all processors to finish
         await Task.WhenAll(_processorTasks.Values);
     }

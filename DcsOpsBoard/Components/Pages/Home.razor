@@ -1,6 +1,7 @@
 ﻿@page "/"
 
 @using DcsOpsBoard.Components.Menu
+@using DcsOpsBoard.Components.Modals.FlightModals
 @using DcsOpsBoard.Components.PlanningComponents
 
 @code {
@@ -9,6 +10,8 @@
 
 <LeftSideMenu></LeftSideMenu>
 <RightSideMenu></RightSideMenu>
+
+<FlightModal></FlightModal>
 
 <div class="planning-map-container">
     <PlanningMap></PlanningMap>

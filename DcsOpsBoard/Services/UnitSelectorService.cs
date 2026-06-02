@@ -1,33 +1,46 @@
 using System;
 using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
+using DcsOpsBoard.Components.PlanningComponents.ShapeTypes;
 
 namespace DcsOpsBoard.Services;
 
-public interface IUnitSelectorService
+public interface ISelectorService
 {
-    public event Func<UnitSelectedArgs, Task> OnGroupSelected;
-
-    public Task SelectPlaneGroup(PlaneGroup group);
+    public event Func<ObjectSelectedArgs, Task> OnObjectSelected;
+    public Task SelectRefId(Guid refId, DcsShapeType shapeType);
+    public Task UnselectAll();
 }
 
-public class UnitSelectedArgs
+public class ObjectSelectedArgs
 {
-    public required Type SelectedType { get; set; }
-    public required object SelectedUnit { get; set; }
+    public required Guid SelectedObjectRefId { get; set; }
+    public required DcsShapeType SelectedObjectType { get; set; }
 }
 
-public class UnitSelectorService : IUnitSelectorService
+public class SelectorService : ISelectorService
 {
-    public event Func<UnitSelectedArgs, Task> OnGroupSelected = (_) => Task.CompletedTask;
+    public event Func<ObjectSelectedArgs, Task> OnObjectSelected = (_) => Task.CompletedTask;
 
-    public async Task SelectPlaneGroup(PlaneGroup group)
+    public async Task SelectRefId(Guid refId, DcsShapeType shapeType)
     {
-        if(OnGroupSelected != null)
+        if(OnObjectSelected != null)
         {
-            await OnGroupSelected.Invoke(new UnitSelectedArgs
+            await OnObjectSelected.Invoke(new ObjectSelectedArgs
             {
-                SelectedType = typeof(PlaneGroup),
-                SelectedUnit = group
+                SelectedObjectRefId = refId,
+                SelectedObjectType = shapeType
+            });
+        }
+    }
+
+    public async Task UnselectAll()
+    {
+        if(OnObjectSelected != null)
+        {
+            await OnObjectSelected.Invoke(new ObjectSelectedArgs
+            {
+                SelectedObjectRefId = Guid.Empty,
+                SelectedObjectType = DcsShapeType.Unknown
             });
         }
     }

@@ -7,6 +7,7 @@ using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups;
 using DcsMissionParser.Net.Objects.Coalitions.Units.Plane;
 using DcsMissionParser.Net.Objects.Commons;
 using DcsOpsBoard.Database.Entities;
+using DcsOpsBoard.MissionEditing.RenderExtensions.Context;
 using DcsOpsBoard.MissionEditing.UpdateCommands.DTO;
 using DcsOpsBoard.Services.MissionSync;
 using DcsOpsBoard.Types;
@@ -20,8 +21,7 @@ public record AddFlight(
     Guid MissionStateId,
     ulong UserId, 
     DateTime Timestamp,
-    AddFlightRequest Request
-) : IMissionCommand
+    AddFlightRequest Request) : IMissionCommand
 {
     public string CommandType => nameof(AddFlight);
 
@@ -118,7 +118,7 @@ public record AddFlight(
         return CommandResult.Success();
     }
 
-    public async Task<CommandResult> RenderAsync(OpenLayers.Blazor.Map map, Dictionary<Guid, Shape> renderCache, CoordConverter coordConverter)
+    public async Task<CommandResult> RenderAsync(DcsRenderContext renderContext)
     {   
         //TODO: IMPLEMENT
         return CommandResult.Success();

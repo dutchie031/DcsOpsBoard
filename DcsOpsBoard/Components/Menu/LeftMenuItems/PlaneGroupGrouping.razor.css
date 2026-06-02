@@ -6,12 +6,12 @@
     height: 0;
     overflow: hidden;
     transition: height 2s ease;
+    text-wrap: nowrap;
 }
 
 .grouping-row.expanded {
     height: auto;
 }
-
 
 .grouping-header {
     border-bottom: 1px solid #444654;
@@ -23,7 +23,15 @@
 }
 
 .group-item {
-    padding: 5px 10px;
+    margin-left: 10px;
+    padding-top: 5px;
+    padding-right: 5px;
+    text-wrap: nowrap;
+    border-left: 2px solid white;
+}
+
+.group-item.selected {
+    border-left: 2px solid #0078D7;
 }
 
 .group-item.selected {
@@ -33,5 +41,4 @@
 .group-item:hover {
     background-color: #333545;
     cursor: pointer;
-    color : rgba(253, 255, 229, 0.205)
 }

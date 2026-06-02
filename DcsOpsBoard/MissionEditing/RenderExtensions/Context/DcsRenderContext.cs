@@ -18,4 +18,8 @@ public class DcsRenderContext
     public required CoordConverter CoordConverter { get; set; }
     public required IMissionCache MissionCache { get; init; }
     public Guid SelectedRefId { get; set; } = Guid.Empty;
+
+    public Guid MissionId => EditingClient.CurrentMissionData?.MissionId ?? Guid.Empty;
+    public Guid MissionStateId => EditingClient.CurrentMission?.ParserId ?? Guid.Empty;
+    public ulong? UserId => EditingClient.CurrentUserId;
 }

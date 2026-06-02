@@ -1,0 +1,79 @@
+﻿@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
+@using DcsOpsBoard.Components.Modals.DraggableModal
+@using DcsOpsBoard.Hubs.Clients
+@using DcsOpsBoard.Types.Enums
+@inject IFlightModalService FlightModalService
+@inject IMissionEditingClient MissionClientService
+
+@code {
+
+    private bool _modalVisible;
+
+    public async Task SaveAndClose()
+    {
+        _modalVisible = false;
+        StateHasChanged();
+    }
+
+    public async Task CloseWithoutSaving()
+    {
+        _modalVisible = false;
+    }
+
+    private PlaneGroup? SelectedFlight;
+    private bool IsReadOnly;
+    
+    protected override void OnInitialized()
+    {
+        FlightModalService.OnCreateFlightModalRequested += FlightModalService_OnCreateFlightModalRequested;
+        FlightModalService.OnEditFlightModalRequested += FlightModalService_OnEditFlightModalRequested;
+    }
+
+    private async Task FlightModalService_OnCreateFlightModalRequested(CoalitionSide side, bool isClientFlight)
+    {
+        if(MissionClientService.CurrentMission == null)
+            return;
+
+        int nextGroupId = MissionClientService.CurrentMission.NextGroupId;
+        SelectedFlight = new PlaneGroup
+        {
+            GroupName = $"New Flight-{nextGroupId}",
+            GroupId = nextGroupId,
+            Tasking = PlaneTasking.Nothing,
+            IsHidden = false
+        };
+        
+        IsReadOnly = false;
+        _modalVisible = true;
+        StateHasChanged();
+    }
+    
+    private async Task FlightModalService_OnEditFlightModalRequested(PlaneGroup flight, bool isReadOnly)
+    {
+        SelectedFlight = flight;
+        IsReadOnly = isReadOnly;
+        _modalVisible = true;
+        StateHasChanged();
+    }
+
+}
+
+<DraggableModal ZIndex="1100" IsVisible="_modalVisible" OnClose="CloseWithoutSaving">
+    <Header>
+        @if (SelectedFlight != null)
+        {
+            <h3 class="modal-title">@SelectedFlight.GroupName</h3>
+        }
+        else
+        {
+            <h3 class="modal-title">New Flight</h3>
+        }
+    </Header>
+    <Body>
+        <h3>Hello</h3>
+    </Body>
+    <Footer>
+        <button class="btn btn-secondary" @onclick="CloseWithoutSaving">Cancel</button>
+        <button class="btn btn-primary" @onclick="SaveAndClose">Save</button>
+    </Footer>
+</DraggableModal>

@@ -20,6 +20,8 @@ public interface IMissionEditingClient
     public event Func<Task> OnMissionReceived;
     public event Func<IMissionCommand, Task> OnCommandReceived;
 
+    public ulong? CurrentUserId { get; }
+
     public Task SendCommand(IMissionCommand command);
 
 }
@@ -30,8 +32,9 @@ public class MissionEditingClient : IMissionEditingClient
     private readonly IMissionSelectorService _missionSelectorService;
     private readonly HubConnectionProvider<MissionEditHub> _missionEditingHubProvider;
     private readonly IUserAuthenticationState _authState;
+    private readonly ILogger<MissionEditingClient> _logger;
     private bool _hubEventsRegistered = false;
-
+    public ulong? CurrentUserId => _authState.DiscordId;
     public DcsMission? CurrentMission { get; private set; }
     public OpsPlanningMission? CurrentMissionData { get; private set; }
     public RoleType CurrentRoleInMission { get; private set; } = RoleType.Unknown;
@@ -41,32 +44,36 @@ public class MissionEditingClient : IMissionEditingClient
     public event Func<Task> OnMissionChanged = () => Task.CompletedTask;
     public event Func<Task> OnMissionReceived = () => Task.CompletedTask;
     public event Func<IMissionCommand, Task> OnCommandReceived = (command) => Task.CompletedTask;
-    public MissionEditingClient(IMissionSelectorService missionSelectorService, 
-        HubConnectionProvider<MissionEditHub> missionEditingHubProvider, 
+    public MissionEditingClient(IMissionSelectorService missionSelectorService,
+        HubConnectionProvider<MissionEditHub> missionEditingHubProvider,
         IPermissionManager permissionManager,
-        IUserAuthenticationState authState)
+        IUserAuthenticationState authState,
+        ILogger<MissionEditingClient> logger)
     {
         _missionSelectorService = missionSelectorService;
         _missionSelectorService.OnMissionSelected += MissionSelectorService_OnMissionChanged;
-        _missionEditingHubProvider = missionEditingHubProvider; 
+        _missionEditingHubProvider = missionEditingHubProvider;
         _permissionManager = permissionManager;
         _authState = authState;
+        _logger = logger;
     }
 
     public async Task SendCommand(IMissionCommand command)
     {
         if (CurrentMissionData == null || command.MissionId != CurrentMissionData.MissionId) return;
-        
+
         await _missionEditingHubProvider.EnsureStartedAsync();
-        if(_missionEditingHubProvider.Connection.State == HubConnectionState.Connected)
+        if (_missionEditingHubProvider.Connection.State == HubConnectionState.Connected)
         {
-            await _missionEditingHubProvider.Connection.SendAsync(MissionEditHub.SendMissionCommandMethodName, command);
+            await _missionEditingHubProvider.Connection.SendAsync(MissionEditHub.SendMissionCommandMethodName, command.ToJsonElement());
         }
+
+        Console.WriteLine($"Client side stateId: {command.MissionStateId}");
     }
 
     private async Task MissionSelectorService_OnMissionChanged(OpsPlanningMission? obj)
     {
-        if(obj == null)
+        if (obj == null)
         {
             CurrentMission = null;
             CurrentMissionData = null;
@@ -75,20 +82,19 @@ public class MissionEditingClient : IMissionEditingClient
             return;
         }
 
-        await  _authState.EnsureLoaded();
-        if(!_authState.IsAuthenticated)
+        await _authState.EnsureLoaded();
+        if (!_authState.IsAuthenticated)
         {
             //TODO: Redirect for login?
-            return; 
+            return;
         }
 
         await RegisterHubEvents();
         await _missionEditingHubProvider.EnsureStartedAsync();
-        
 
         CurrentMissionData = obj;
 
-        if(CurrentMissionData.OwnerId == _authState.DiscordId)
+        if (CurrentMissionData.OwnerId == _authState.DiscordId)
         {
             CurrentRoleInMission = RoleType.Admin;
         }
@@ -103,7 +109,7 @@ public class MissionEditingClient : IMissionEditingClient
 
         await OnMissionChanged.Invoke();
 
-        if(_missionEditingHubProvider.Connection.State == HubConnectionState.Connected)
+        if (_missionEditingHubProvider.Connection.State == HubConnectionState.Connected)
         {
             await _missionEditingHubProvider.Connection.SendAsync(MissionEditHub.JoinMethodName, obj.MissionId);
         }
@@ -115,7 +121,7 @@ public class MissionEditingClient : IMissionEditingClient
         if (_hubEventsRegistered) return;
 
         _missionEditingHubProvider.Connection.On<JsonElement>(MissionEditHub.OnFullUpdate, MissionReceived);
-        _missionEditingHubProvider.Connection.On<IMissionCommand>(MissionEditHub.OnMissionUpdate, CommandReceived);
+        _missionEditingHubProvider.Connection.On<JsonElement>(MissionEditHub.OnMissionUpdate, CommandReceivedJson);
 
         _hubEventsRegistered = true;
     }
@@ -131,26 +137,40 @@ public class MissionEditingClient : IMissionEditingClient
 
             if (mission == null)
             {
-                Console.WriteLine("ReceiveMissionUpdate received but deserialized mission is null.");
+                _logger.LogWarning("ReceiveMissionUpdate received but deserialized mission is null.");
                 return;
             }
 
+            _logger.LogDebug($"Client received mission with state id: {mission?.ParserId}");
             CurrentMission = mission;
             await OnMissionReceived.Invoke();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ReceiveMissionUpdate deserialize failed: {ex}");
-            Console.WriteLine($"ReceiveMissionUpdate payload: {payload.GetRawText()}");
+            _logger.LogError(ex, "ReceiveMissionUpdate deserialize failed");
+            _logger.LogDebug($"ReceiveMissionUpdate payload: {payload.GetRawText()}");
         }
     }
 
-    private async Task CommandReceived(IMissionCommand command)
+    private async Task CommandReceivedJson(JsonElement payload)
     {
-        if (CurrentMissionData == null || command.MissionId != CurrentMissionData.MissionId) return;
+        try
+        {
+            var command = IMissionCommand.FromJsonElement(payload);
+            if (command == null)
+            {
+                Console.WriteLine("CommandReceivedJson: Failed to deserialize command");
+                return;
+            }
 
-        await OnCommandReceived.Invoke(command);
+            if (CurrentMissionData == null || command.MissionId != CurrentMissionData.MissionId)
+                return;
+
+            await OnCommandReceived.Invoke(command);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"CommandReceivedJson exception: {ex}");
+        }
     }
-    
-
 }

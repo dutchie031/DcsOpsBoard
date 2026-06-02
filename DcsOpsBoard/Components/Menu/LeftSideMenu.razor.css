@@ -1,13 +1,20 @@
 #left-menu-body {
     background-color: #222430e7;
     height: 90vh;
-    width: 10vw;
-    overflow: hidden;
+    min-width: 10vw;
+    max-width: 10vw;
+    overflow-x: hidden;
+    overflow-y: auto;
     position: absolute;
     top: 5vh;
     left: 0;
-    transition: width 0.3s ease;
+    transition: min-width 0.3s ease, max-width 0.3s ease;
     z-index: 300;
     direction: ltr;
     text-wrap: nowrap
+}
+
+#left-menu-body:hover {
+    min-width: 15vw;
+    max-width:30vw;
 }

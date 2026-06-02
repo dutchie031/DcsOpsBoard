@@ -3,6 +3,7 @@ using AspNet.Security.OAuth.Discord;
 using DcsOpsBoard.Components;
 using DcsOpsBoard.Components.Modals.AreYouSure;
 using DcsOpsBoard.Components.Modals.Discord;
+using DcsOpsBoard.Components.Modals.FlightModals;
 using DcsOpsBoard.Components.Modals.Warnings;
 using DcsOpsBoard.Configuration;
 using DcsOpsBoard.Database;
@@ -36,7 +37,8 @@ services.Configure<DiscordAuthentication>(builder.Configuration.GetSection("Disc
 services.AddScoped<IDiscordUserClient, DiscordUserClient>();
 services.AddSingleton<IDiscordBotClient, DiscordBotClient>();
 services.AddScoped<IFindUserService, FindUserService>();
-services.AddScoped<IUnitSelectorService, UnitSelectorService>();
+services.AddScoped<ISelectorService, SelectorService>();
+services.AddScoped<IFlightModalService, FlightModalService>();
 
 builder.Services.Configure<TileConfiguration>(builder.Configuration.GetSection("TileConfiguration"));
 

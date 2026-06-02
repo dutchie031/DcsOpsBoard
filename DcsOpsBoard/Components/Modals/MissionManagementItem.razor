@@ -98,13 +98,13 @@
 }
 
 <div class="row w-100 mission-selection-row" @onclick="SelectMission">
-    <div class="col-2">
+    <div class="col-6">
         <span>@Mission.Name</span>
     </div>
-    <div class="col-6">
+    <div class="col-4">
         <span>@Mission.UploadedAt.ToString("yyyy-MM-dd HH:mm:ss")</span>
     </div>
-    <div class="col-4">
+    <div class="col-2 d-flex align-items-center">
         <button class="btn btn-sm btn-primary" @onclick="Show" @onclick:stopPropagation>Manage</button>
     </div>
 </div>

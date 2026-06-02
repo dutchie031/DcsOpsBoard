@@ -1,0 +1,144 @@
+﻿
+@using Microsoft.JSInterop
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (IsVisible)
+{
+    <div class="draggable-modal" 
+         style="left: @(_currentX)px; top: @(_currentY)px; z-index: @ZIndex;"
+         @onclick:stopPropagation>
+        
+        <div class="draggable-modal-header" 
+             @onmousedown="OnMouseDown"
+             @onmousedown:preventDefault>
+            @Header
+        </div>
+        
+        <div class="draggable-modal-body">
+            @Body
+        </div>
+        
+        @if (Footer != null)
+        {
+            <div class="draggable-modal-footer">
+                @Footer
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+    
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+    
+    [Parameter]
+    public RenderFragment? Body { get; set; }
+    
+    [Parameter]
+    public RenderFragment? Footer { get; set; }
+    
+    [Parameter]
+    public int InitialX { get; set; } = 0;
+    
+    [Parameter]
+    public int InitialY { get; set; } = 100;
+    
+    [Parameter]
+    public int ZIndex { get; set; } = 1050;
+    
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+    
+    private IJSObjectReference? _jsModule;
+    private DotNetObjectReference<DraggableModal>? _dotNetRef;
+    
+    private bool _isDragging = false;
+    private double _currentX;
+    private double _currentY;
+    private double _startX;
+    private double _startY;
+    private double _offsetX;
+    private double _offsetY;
+    
+    protected override void OnInitialized()
+    {
+        _currentX = InitialX;
+        _currentY = InitialY;
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/draggableModal.js");
+            _dotNetRef = DotNetObjectReference.Create(this);
+            
+            if (_jsModule != null && _dotNetRef != null)
+            {
+                await _jsModule.InvokeVoidAsync("initialize", _dotNetRef);
+            }
+        }
+    }
+    
+    private async Task OnMouseDown(MouseEventArgs e)
+    {
+        if (_jsModule == null) return;
+        
+        _isDragging = true;
+        _startX = e.ClientX;
+        _startY = e.ClientY;
+        _offsetX = _currentX;
+        _offsetY = _currentY;
+        
+        await _jsModule.InvokeVoidAsync("startDrag");
+    }
+    
+    [JSInvokable]
+    public void OnMouseMove(double clientX, double clientY)
+    {
+        if (!_isDragging) return;
+        
+        double deltaX = clientX - _startX;
+        double deltaY = clientY - _startY;
+        
+        _currentX = _offsetX + deltaX;
+        _currentY = _offsetY + deltaY;
+        
+        StateHasChanged();
+    }
+    
+    [JSInvokable]
+    public void OnMouseUp()
+    {
+        _isDragging = false;
+        
+        if (_jsModule != null)
+        {
+            _ = _jsModule.InvokeVoidAsync("stopDrag");
+        }
+    }
+    
+    public async Task Close()
+    {
+        IsVisible = false;
+        await OnClose.InvokeAsync();
+        StateHasChanged();
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule != null)
+        {
+            await _jsModule.InvokeVoidAsync("cleanup");
+            await _jsModule.DisposeAsync();
+        }
+        
+        _dotNetRef?.Dispose();
+    }
+}
+

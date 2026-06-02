@@ -5,6 +5,7 @@
 @using DcsMissionParser.Net.Objects.Coalitions.Routes.Plane.Tasks
 @using DcsOpsBoard.Components.Modals.Warnings
 @using DcsOpsBoard.Components.PlanningComponents.HelperClasses
+@using DcsOpsBoard.Components.PlanningComponents.ShapeTypes
 @using DcsOpsBoard.Configuration
 @using DcsOpsBoard.Constants
 @using DcsOpsBoard.Database.Entities
@@ -34,7 +35,7 @@
 @inject HubConnectionProvider<CursorHub> CursorHubProvider
 @inject IUserMapSettings UserMapSettings
 @inject IUserAuthenticationState AuthState
-@inject IUnitSelectorService UnitSelectorService
+@inject ISelectorService UnitSelectorService
 @inject WarningService WarningService
 @inject IJSRuntime JS
 
@@ -48,8 +49,26 @@
     private Layer? _objectsLayer;
     private Layer? _settlementsLayer;
 
-    private DcsRenderContext _renderContext = null!; //Will be set when mission is loaded, which is before any real action
-    
+    private DcsRenderContext RenderContext 
+    {
+        get 
+        {
+            if(field == null)
+            {
+                field = new DcsRenderContext
+                {
+                    Map = _map,
+                    RenderState = new MissionRenderState(),
+                    CoordConverter = MissionEditingClient.CurrentMissionData!.Map.CoordConverter,
+                    EditingClient = MissionEditingClient,
+                    MissionCache = MissionCache,
+                };
+            }
+            return field;
+        }
+        set => field = value;
+    }
+
     private CursorHelper _cursorHelper = null!;
 
     private Layer? _cursorLayer;
@@ -101,7 +120,8 @@
     {
         MissionEditingClient.OnMissionChanged += MissionChanged;
         MissionEditingClient.OnMissionReceived += MissionEditingClient_OnMissionReceived;
-        UnitSelectorService.OnGroupSelected += UnitSelectorService_OnGroupSelected;
+        MissionEditingClient.OnCommandReceived += OnMissionCommandReceived;
+        UnitSelectorService.OnObjectSelected += UnitSelectorService_OnObjectSelected;
 
         _cursorHelper = new CursorHelper
         {
@@ -114,32 +134,12 @@
 
     public async Task MissionChanged()
     {
-
+        RenderContext = null; //Unset render context to be built again with new mission data.
         await JS.InvokeVoidAsync("dcsMap.setActiveMap", MissionEditingClient.CurrentMissionData?.Map.ToMapString());
 
         await _cursorHelper.JoinCursorsHub(MissionEditingClient.CurrentMissionData?.MissionId ?? Guid.Empty);
         await InvokeAsync(StateHasChanged);
-
-        if(_renderContext == null)
-        {
-            _renderContext = new DcsRenderContext
-            {
-                Map = _map,
-                RenderState = new MissionRenderState(),
-                CoordConverter = MissionEditingClient.CurrentMissionData!.Map.CoordConverter,
-                EditingClient = MissionEditingClient,
-                MissionCache = MissionCache,
-            };
-        } 
-        else 
-        {
-            _renderContext.CoordConverter = MissionEditingClient.CurrentMissionData!.Map.CoordConverter;
-            _renderContext.RenderState.Clear();
-            _renderContext.SelectedRefId = Guid.NewGuid();
-        }
-
         _cursorHelper.CursorLayer = _cursorLayer;
-
     }
 
     public async Task MissionEditingClient_OnMissionReceived()
@@ -152,7 +152,7 @@
         await InvokeAsync(StateHasChanged);
         if(MissionEditingClient.CurrentMissionData != null && MissionEditingClient.CurrentMission != null)
         {
-            await MissionEditingClient.CurrentMission.RenderAsync(_renderContext);
+            await MissionEditingClient.CurrentMission.RenderAsync(RenderContext);
         }
        
     }
@@ -182,60 +182,80 @@
         JS.InvokeVoidAsync("dcsMap.setRazorReference", _dotNetRef);
     }
     
-    private UnitSelectedArgs? _lastSelectedUnit;
-    private async Task UnitSelectorService_OnGroupSelected(UnitSelectedArgs args)
+    private ObjectSelectedArgs? _lastSelectedUnit;
+    private async Task UnitSelectorService_OnObjectSelected(ObjectSelectedArgs args)
     {
-        _renderContext.SelectedRefId = Guid.Empty;
+        RenderContext.SelectedRefId = Guid.Empty;
         if(_lastSelectedUnit != null)
         {
-            if(_lastSelectedUnit.SelectedType == typeof(PlaneGroup) && _lastSelectedUnit.SelectedUnit is PlaneGroup lastGroup)
+            if(_lastSelectedUnit.SelectedObjectType == DcsShapeType.Group && _lastSelectedUnit.SelectedObjectRefId != Guid.Empty)
             {
-                await lastGroup.RenderAsync(_renderContext);
+                if(RenderContext.RenderState.TryGetFlight(_lastSelectedUnit.SelectedObjectRefId, out PlaneGroup? prevGroup))
+                {
+                    if(prevGroup != null)
+                    {
+                        await prevGroup.RenderAsync(RenderContext);
+                    }
+                }
             }
+                
         }
 
-        if(args.SelectedType == typeof(PlaneGroup) && args.SelectedUnit is PlaneGroup group)
+        if(args.SelectedObjectType == DcsShapeType.Group && args.SelectedObjectRefId != Guid.Empty)
         {
-            _renderContext.SelectedRefId = group.RefId;
-            await group.RenderAsync(_renderContext);
+            if(RenderContext.RenderState.TryGetFlight(args.SelectedObjectRefId, out PlaneGroup? group))
+            {
+                if(group != null)
+                {
+                    RenderContext.SelectedRefId = group.RefId;
+                    await group.RenderAsync(RenderContext);
+                }
+            }
         }
         _lastSelectedUnit = args;
+    }
+
+    public async Task OnMissionCommandReceived(IMissionCommand command)
+    {
+        try
+        {
+            await command.RenderAsync(RenderContext);
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine($"Error executing command {command.GetType().Name}: {ex}");
+        }
     }
     
     [JSInvokable]
     public async Task OnItemMoved(Guid featureId, double lon, double lat)
     {   
         
-        if(!_renderContext!.RenderState.TryGetShape(featureId, out Shape? shape))
+        if(!RenderContext.RenderState.TryGetShape(featureId, out Shape? shape))
         {
             Console.WriteLine($"Shape with id {featureId} not found");
             return;
         }
 
-        string type = shape.Properties.ContainsKey("$type") ? shape.Properties["$type"].ToString() ?? "unknown" : "unknown";
-
-        Console.WriteLine($"Item {featureId} of type {type} moved to {lon}, {lat}");
-
-        // TODO: Update your mission data here
-        // TODO: Send update via SignalR
+        DcsShapeType type = shape!.Properties.ContainsKey("$type") ? shape.Properties["$type"]: DcsShapeType.Unknown;
+        await type.ShapeMoved(featureId, lat, lon, RenderContext);
     }
 
     [JSInvokable]
     public async Task OnItemMoving(Guid featureId, double lon, double lat)
     {
-        if(!_renderContext.RenderState.TryGetShape(featureId, out Shape? shape))
+        if(!RenderContext.RenderState.TryGetShape(featureId, out Shape? shape))
         {
             Console.WriteLine($"Shape with id {featureId} not found");
             return;
         }
 
-        string type = shape.Properties.ContainsKey("$type") ? shape.Properties["$type"].ToString() ?? "unknown" : "unknown";
-
-        if(type == MapConstants.ShapeTypes.FlightWaypoint)
+        DcsShapeType type = shape.Properties.ContainsKey("$type") ? shape.Properties["$type"]: DcsShapeType.Unknown;
+        if(type == DcsShapeType.Waypoint)
         {
             if(shape.Properties.TryGetValue(MapConstants.FlightIdKey, out var flightIdObj) && flightIdObj is Guid flightId)
             {
-                if(_renderContext.RenderState.TryGetFlight(flightId, out PlaneGroup? flight))
+                if(RenderContext.RenderState.TryGetFlight(flightId, out PlaneGroup? flight))
                 {
                     if(flight == null)
                     {
@@ -246,11 +266,11 @@
                     
                     if(changedPoint != null)
                     {
-                        DcsCoord dcsCoord = _renderContext.CoordConverter.LLtoLO(new LatLong{ Lat = lat, Lon = lon });
+                        DcsCoord dcsCoord = RenderContext.CoordConverter.LLtoLO(new LatLong{ Lat = lat, Lon = lon });
                         changedPoint.X = dcsCoord.X;
                         changedPoint.Y = dcsCoord.Y;
 
-                        await flight.RenderAsync(_renderContext);
+                        await flight.RenderAsync(RenderContext);
                     }
                 }
             }

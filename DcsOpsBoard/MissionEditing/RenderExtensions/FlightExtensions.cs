@@ -11,6 +11,7 @@ using DcsMissionParser.Net.Objects.Coalitions.Units.Plane;
 using DcsMissionParser.Net.CoordMapping;
 using DcsOpsBoard.Components.PlanningComponents.HelperClasses;
 using DcsOpsBoard.MissionEditing.RenderExtensions.Context;
+using DcsOpsBoard.Components.PlanningComponents.ShapeTypes;
 
 namespace DcsOpsBoard.MissionEditing.RenderExtensions;
 
@@ -76,27 +77,10 @@ public static class FlightExtensions
                 return new Coordinate(converted.Lon, converted.Lat);
             })];
 
-        if(selected)
-        {
-            line.Stroke = "rgba(238, 255, 0, 0.77)";
-        } 
-        else if(side == CoalitionSide.Blue)
-        {
-            line.Stroke = "rgba(16, 95, 243, 0.49)";
-        }
-        else if(side == CoalitionSide.Red)
-        {
-            line.Stroke = "rgba(255, 0, 0, 0.77)";
-        }
-        else
-        {
-            line.Stroke = "rgba(255, 255, 255, 0.77)";
-        }
-       
-
+        line.Stroke = GetStrokeColour(side, selected);
         line.StrokeThickness = selected ? 4 : 2;
-
         line.Properties[MapConstants.FlightIdKey] = flightId;
+        line.ZIndex = selected ? 100 : 5;
 
         await line.UpdateShape();
     }
@@ -127,14 +111,28 @@ public static class FlightExtensions
         DcsCoord coord = new() { X = waypoint.X, Y = waypoint.Y };
         var converted = coordConverter.LOtoLL(coord);
         point.Coordinate = new Coordinate(converted.Lon, converted.Lat);
-        point.Stroke = "rgba(238, 255, 0, 0.77)";
-        point.Radius = selected ? 7 : 2;
+        point.Stroke = GetStrokeColour(side, selected);
+        point.Radius = selected ? 7 : 4;
+        point.ZIndex = selected ? 100 : 5;
 
-        point.Properties[MapConstants.TypeKey] = MapConstants.ShapeTypes.FlightWaypoint;
+        point.Properties[MapConstants.TypeKey] = DcsShapeType.Waypoint;
         point.Properties[MapConstants.FlightIdKey] = flightId;
 
         await point.UpdateShape();
 
+    }
+
+    private static string GetStrokeColour(CoalitionSide side, bool selected = false)
+    {
+        if (selected)         
+            return "rgba(238, 255, 0, 0.77)";
+
+        return side switch
+        {
+            CoalitionSide.Blue => "rgba(16, 95, 243, 0.49)",
+            CoalitionSide.Red => "rgba(255, 0, 0, 0.77)",
+            _ => "rgba(255, 255, 255, 0.77)"
+        };
     }
 
     private static async Task RenderAsync(this PlaneUnit unit, CoalitionSide side, RoleType role, bool editable, Layer layer, MissionRenderState renderState, CoordConverter coordConverter)

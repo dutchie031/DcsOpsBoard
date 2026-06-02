@@ -9,6 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Folder Include="Components/Modals/DraggableModal/" />
+    <Folder Include="Components/Modals/FlightModals/" />
     <Folder Include="Components\Menu\LeftViewItems\" />
     <Folder Include="Components\Modals\AreYouSure\" />
     <Folder Include="Components\Modals\Warnings\" />

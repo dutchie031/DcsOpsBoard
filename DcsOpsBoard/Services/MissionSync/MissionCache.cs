@@ -12,7 +12,16 @@ public interface IMissionCache
     Task<DcsMission?> GetMission(Guid missionId);
     Task<CoalitionSide> GetCoalitionForGroup(Guid missionId, Guid groupId);
     Task<CoalitionSide> GetCoalitionForUnit(Guid missionId, Guid groupId);
-    Task UpdateMission(Guid missionId, Action<DcsMission> updateAction);
+    
+    /// <summary>
+    /// Apply an update action to a mission. This will load the mission into the cache if it's not already loaded, apply the update, and mark the mission as dirty so it will be persisted to storage on the next persist cycle.
+    /// </summary>
+    /// <param name="missionId">The ID of the mission to update.</param>
+    /// <param name="updateAction">The action to apply to the mission.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the mission is not in sync.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown if the mission is not found.</exception>
+    Task UpdateMission(Guid missionId, Guid missionStateId, Action<DcsMission> updateAction);
 
     Task PersistMissions();
     Task EvictOldMissions(TimeSpan maxAge);
@@ -73,9 +82,13 @@ public class MissionCache(IMissionStorageManager _missionStorageManager) : Backg
         }
     }
 
-    public async Task UpdateMission(Guid missionId, Action<DcsMission> updateAction)
+    public async Task UpdateMission(Guid missionId, Guid missionStateId, Action<DcsMission> updateAction)
     {
-        DcsMission? mission = await GetMission(missionId) ?? throw new InvalidOperationException("Mission not found");
+        DcsMission? mission = await GetMission(missionId) ?? throw new KeyNotFoundException("Mission not found");
+        if (mission.ParserId != missionStateId)
+        {
+            throw new InvalidOperationException("Mission state is out of date");
+        }
         updateAction(mission);
         _dirtyFlags[missionId] = true;
     }

@@ -5,6 +5,7 @@
 @using DcsOpsBoard.Database.Entities
 @using DcsOpsBoard.Hubs.Clients
 @using DcsOpsBoard.Services
+@using DcsOpsBoard.Types.Enums
 
 @rendermode InteractiveServer
 
@@ -26,37 +27,48 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private Dictionary<string, List<PlaneGroup>> PlaneGroupings = [];
-    private Dictionary<string, List<PlaneGroup>> ClientPlaneGroupings = [];
+    private record MenuGrouping
+    {
+        public required string Name { get; init; }
+        public required bool IsClient { get; init; }
+        public required CoalitionSide CoalitionSide { get; init; }
+    }
+
+    private Dictionary<MenuGrouping, List<PlaneGroup>> PlanesByGrouping = [];
 
     private async Task MissionReceived()
     {
-        PlaneGroupings.Clear();
-        ClientPlaneGroupings.Clear();
+        PlanesByGrouping.Clear();
 
-        if(CurrentMission != null)
+        if (CurrentMission != null)
         {
-            foreach(PlaneGroup group in CurrentMission.Coalitions.Blue.Countries.SelectMany(x => x.Planes.Groups))
-            {
-                if(group.Units.Any(x => x.Skill == Skill.Client || x.Skill == Skill.Player))
+            PlanesByGrouping = CurrentMission.Coalitions.All
+                .SelectMany(coalition =>
+                    coalition.Countries.SelectMany(country =>
+                        country.Planes.Groups.Select(group => new
+                        {
+                            Coalition = coalition.Name ?? "Unknown",
+                            Group = group,
+                            IsClient = group.Units.Any(u => u.Skill == Skill.Client)
+                        })
+                    )
+                )
+                .GroupBy(x => new MenuGrouping
                 {
-                    if(!ClientPlaneGroupings.TryGetValue("Blue Clients", out List<PlaneGroup>? groups))
+                    Name = x.Coalition + ((x.IsClient) ? " (Clients)" : ""),
+                    IsClient = x.IsClient,
+                    CoalitionSide = x.Coalition.ToLower() switch
                     {
-                        groups = [];
-                        ClientPlaneGroupings.Add("Blue Clients", groups);
+                        "blue" => CoalitionSide.Blue,
+                        "red" => CoalitionSide.Red,
+                        "neutrals" => CoalitionSide.Neutral,
+                        _ => CoalitionSide.Unknown
                     }
-                    groups.Add(group);
-                } 
-                else 
-                {
-                    if(!PlaneGroupings.TryGetValue("Blue AI", out List<PlaneGroup>? groups))
-                    {
-                        groups = [];
-                        PlaneGroupings.Add("Blue AI", groups);
-                    }
-                    groups.Add(group);
-                }
-            }
+                })
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => x.Group).ToList()
+                );
 
         }
 
@@ -67,13 +79,12 @@
 }
 
 <div id="left-menu-body">
-    @if(CurrentMission != null)
+    @if (CurrentMission != null)
     {
-        foreach(var grouping in PlaneGroupings)
+        foreach (var grouping in PlanesByGrouping)
         {
-            <PlaneGroupGrouping GroupingName="@grouping.Key" Groups="@grouping.Value"></PlaneGroupGrouping>
+            <PlaneGroupGrouping GroupingName="@grouping.Key.Name" Groups="@grouping.Value"></PlaneGroupGrouping>
         }
-        
     }
 </div>
 
