@@ -1,4 +1,5 @@
 ﻿@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
+@using DcsMissionParser.Net.Objects.Coalitions.Units.Plane
 @using DcsOpsBoard.Components.Modals.DraggableModal
 @using DcsOpsBoard.Hubs.Clients
 @using DcsOpsBoard.Types.Enums
@@ -19,6 +20,8 @@
     {
         _modalVisible = false;
     }
+
+    private IEnumerable<PlaneType> PlaneTypes => PlaneType.GetAll<PlaneType>();
 
     private PlaneGroup? SelectedFlight;
     private bool IsReadOnly;
@@ -70,7 +73,17 @@
         }
     </Header>
     <Body>
-        <h3>Hello</h3>
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-12">
+                    <div class="mb-3">
+                        <label for="flightName" class="form-label">Flight Name</label>
+                        <input type="text" id="flightName" class="form-control" @bind="SelectedFlight.GroupName" readonly="@IsReadOnly" />
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
     </Body>
     <Footer>
         <button class="btn btn-secondary" @onclick="CloseWithoutSaving">Cancel</button>
