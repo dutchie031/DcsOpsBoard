@@ -94,6 +94,7 @@ function Exporter.New(logger)
     return self
 end
 
+
 ---@class ExportBox
 ---@field TopLeft Vec2
 ---@field BottomRight Vec2
@@ -103,18 +104,42 @@ function getExportBoxes()
     if env.mission.drawings and env.mission.drawings.layers then
         for _, layer in pairs(env.mission.drawings.layers) do
             for _, shape in pairs(layer.objects) do
-                if shape.polygonMode == "rect" then
-                    local centerX = shape.mapX
-                    local centerY = shape.mapY
-                    local halfWidth = shape.width / 2
-                    local halfHeight = shape.height / 2
+                -- Only handle free polygons
+                if shape.polygonMode == "free" and shape.points then
+                    -- Collect numeric keys and sort them to preserve order
+                    local keys = {}
+                    for k, _ in pairs(shape.points) do
+                        if type(k) == "number" then
+                            table.insert(keys, k)
+                        end
+                    end
+                    table.sort(keys)
 
-                    local box = {
-                        TopLeft = { x = centerX - halfWidth, y = centerY - halfHeight },
-                        BottomRight = { x = centerX + halfWidth, y = centerY + halfHeight }
-                    }
+                    local verts = {}
+                    local minX, minY, maxX, maxY
+                    for _, k in ipairs(keys) do
+                        local p = shape.points[k]
+                        if p and p.x and p.y then
+                            local ax = shape.mapX + p.x
+                            local ay = shape.mapY + p.y
+                            table.insert(verts, { x = ax, y = ay })
+                            if not minX or ax < minX then minX = ax end
+                            if not maxX or ax > maxX then maxX = ax end
+                            if not minY or ay < minY then minY = ay end
+                            if not maxY or ay > maxY then maxY = ay end
+                        end
+                    end
 
-                    table.insert(boxes, box)
+                    if #verts >= 3 then
+                        local box = {
+                            Vertices = verts,
+                            TopLeft = { x = minX, y = minY },
+                            BottomRight = { x = maxX, y = maxY }
+                        }
+                        table.insert(boxes, box)
+                    else
+                        env.info("Skipping polygon with fewer than 3 vertices")
+                    end
                 end
             end
         end
@@ -132,6 +157,10 @@ function writeMetadataTable(tileIndex, box, settings)
         bottomRight = box.BottomRight,
         sampleInterval = settings.sampleInterval
     }
+
+    if box.Vertices then
+        meta.vertices = box.Vertices
+    end
 
     local json  = net.lua2json(meta)
 
@@ -157,24 +186,54 @@ function Exporter:Export(settings)
         return string.char(surfaceType % 256)
     end
 
+        -- Ray-casting point-in-polygon (odd-even rule)
+        local function pointInPolygon(px, py, vertices)
+            local inside = false
+            local j = #vertices
+            for i = 1, #vertices do
+                local xi = vertices[i].x
+                local yi = vertices[i].y
+                local xj = vertices[j].x
+                local yj = vertices[j].y
+                local intersect = ((yi > py) ~= (yj > py)) and (px < (xj - xi) * (py - yi) / (yj - yi + 0.0) + xi)
+                if intersect then
+                    inside = not inside
+                end
+                j = i
+            end
+            return inside
+        end
+
     for index, box in ipairs(boxes) do
         self.logger:Log(string.format("Exporting box %d: TopLeft(%.2f, %.2f), BottomRight(%.2f, %.2f)", index, box.TopLeft.x, box.TopLeft.y, box.BottomRight.x, box.BottomRight.y))
         writeMetadataTable(index, box, settings)
 
         local terrainBuf = {""}
+        local outsideCount = 0
         for x = box.TopLeft.x, box.BottomRight.x, settings.sampleInterval do
             for y = box.TopLeft.y, box.BottomRight.y, settings.sampleInterval do
-                local surfaceType, height = getDataAt({ x = x, y = y })
-                if (surfaceType == 1) then
-                    -- ground, determine by height
-                    for _, mapping in ipairs(settings.groundHeightMap) do
-                        if height <= mapping.maxHeight then
-                            surfaceType = mapping.surfaceType
-                            break
+                local isInside = true
+                if box.Vertices then
+                    isInside = pointInPolygon(x, y, box.Vertices)
+                end
+
+                if not isInside then
+                    -- write sentinel 255 for outside samples
+                    terrainBuf[#terrainBuf+1] = string.char(255)
+                    outsideCount = outsideCount + 1
+                else
+                    local surfaceType, height = getDataAt({ x = x, y = y })
+                    if (surfaceType == 1) then
+                        -- ground, determine by height
+                        for _, mapping in ipairs(settings.groundHeightMap) do
+                            if height <= mapping.maxHeight then
+                                surfaceType = mapping.surfaceType
+                                break
+                            end
                         end
                     end
+                    terrainBuf[#terrainBuf+1] = EncodeTerrainType(surfaceType)
                 end
-                terrainBuf[#terrainBuf+1] = EncodeTerrainType(surfaceType)
             end
         end
 
@@ -187,6 +246,8 @@ function Exporter:Export(settings)
 
         terrainDataFile:write(table.concat(terrainBuf))
         terrainDataFile:close()
+
+        self.logger:Log(string.format("Tile %d wrote %d outside samples (sentinel 255)", index, outsideCount))
 
     end
     

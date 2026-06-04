@@ -44,9 +44,12 @@
     private OpenLayers.Blazor.Map _map = null!;
     private Layer _extentLayer = null!;
     private Layer? _baseLayer;
+    private Layer? _baseLayerDark;
     private Layer? _shaderLayer;
     private Layer? _detailedLayer;
+    private Layer? _detailedLayerDark;
     private Layer? _objectsLayer;
+    private Layer? _objectsLayerDark;
     private Layer? _settlementsLayer;
 
     private DcsRenderContext RenderContext 
@@ -115,6 +118,9 @@
     {
         return Task.CompletedTask;
     }
+    
+    private bool DefaultBaseLayerVisible = true;
+    private bool DarkBaseLayerVisible = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -122,6 +128,9 @@
         MissionEditingClient.OnMissionReceived += MissionEditingClient_OnMissionReceived;
         MissionEditingClient.OnCommandReceived += OnMissionCommandReceived;
         UnitSelectorService.OnObjectSelected += UnitSelectorService_OnObjectSelected;
+        UserMapSettings.OnSettingsChanged += OnSettingsChanged;
+
+
 
         _cursorHelper = new CursorHelper
         {
@@ -130,6 +139,22 @@
             UserMapSettings = UserMapSettings,
             CursorLayer = _cursorLayer
         };
+    }
+
+    private async Task OnSettingsChanged()
+    {
+        if(UserMapSettings.MapMode == MapMode.Dark)
+        {
+            DefaultBaseLayerVisible = false;
+            DarkBaseLayerVisible = UserMapSettings.ShowBaseLayer;
+        }
+        else if(UserMapSettings.MapMode == MapMode.Default)
+        {
+            DefaultBaseLayerVisible = UserMapSettings.ShowBaseLayer;
+            DarkBaseLayerVisible = false;
+        }
+        
+        await InvokeAsync(StateHasChanged);
     }
 
     public async Task MissionChanged()
@@ -159,11 +184,6 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
-        {
-            UserMapSettings.OnSettingsChanged += StateHasChanged;
-        }
-
         UpdateDotNetRef();
     }
 
@@ -294,8 +314,24 @@
             limits.TopRight.Lat);
     }
 
-    private StyleOptions GetObjectLayerStyle()
+    private StyleOptions GetObjectLayerStyle(bool darkMode)
     {
+        if(darkMode)
+        {
+            return new StyleOptions
+            {
+                Fill = new StyleOptions.FillOptions { Color = "rgba(255, 255, 255, 0.637)" },
+                Stroke = new StyleOptions.StrokeOptions { Color = "rgba(255, 255, 255, 0.637)", Width = 0 },
+                Circle = new StyleOptions.CircleStyleOptions
+                {
+                    Radius = 8,
+                    Fill = new StyleOptions.FillOptions { Color = "rgba(255, 255, 255, 0.637)" },
+                    Stroke = new StyleOptions.StrokeOptions { Color = "rgba(255, 255, 255, 0.637)", Width = 0 }
+                }
+            };
+        }
+
+
         return new StyleOptions
         {
             Fill = new StyleOptions.FillOptions { Color = "rgba(34, 28, 28, 0.637)" },
@@ -328,7 +364,7 @@
     
     public void Dispose()
     {
-        UserMapSettings.OnSettingsChanged -= StateHasChanged;
+        UserMapSettings.OnSettingsChanged -= OnSettingsChanged;
         _dotNetRef?.Dispose();
     }
 
@@ -351,37 +387,65 @@
             <Layers>
 
                 <Layer @ref="_extentLayer" Extent="@GetExtent()" Opacity="0"/>
-
-                <Layer @key="@($"base-layer-{MissionEditingClient.CurrentMissionData.MissionId}")"
-                        @ref="_baseLayer" Id="base-layer" 
-                        Visibility="@(UserMapSettings.ShowBaseLayer)"
-                        SourceType="SourceType.XYZ" 
+                
+                <div> @* Base Layers *@
+                    <Layer @ref="_baseLayer" Id="base-layer"
+                        Visibility="@(DefaultBaseLayerVisible)"
+                        SourceType="SourceType.XYZ"
                         SourceOptions="BaseTileSourceOptions"
-                       Url=@($"/api/tiles/{MissionEditingClient.CurrentMissionData.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") Format="image/webp" />
+                        Url="@($"/api/tiles/{MissionEditingClient.CurrentMissionData?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp")" Format="image/webp" />
 
-                @* Detailed layer is loaded dynamically via JS to avoid unnecessary tile loading *@
-                <Layer @ref="_detailedLayer" Id="detailed-layer" SourceType="SourceType.XYZ"
-                        Visibility="@(UserMapSettings.ShowBaseLayer)"
+                    <Layer @ref="_baseLayerDark" Id="base-layer-dark"
+                        Visibility="@(DarkBaseLayerVisible)"
+                        SourceType="SourceType.XYZ"
+                        SourceOptions="BaseTileSourceOptions"
+                        Url="@($"/api/tiles-dark/{MissionEditingClient.CurrentMissionData?.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp")" Format="image/webp" />
+                </div>
+
+                <div> @* Detailed layer Layers *@
+                    <Layer @ref="_detailedLayer" Id="detailed-layer" SourceType="SourceType.XYZ"
+                        Visibility="@(DefaultBaseLayerVisible)"
                        SourceOptions="DetailedTileSourceOptions" MinZoom="15" Format="image/webp" />
 
+                    <Layer @ref="_detailedLayerDark" Id="detailed-layer-dark" SourceType="SourceType.XYZ"
+                        Visibility="@(DarkBaseLayerVisible)"
+                       SourceOptions="DetailedTileSourceOptions" MinZoom="15" Format="image/webp" />
+                </div>
+              
+
+                @* Detailed layer is loaded dynamically via JS to avoid unnecessary tile loading *@
+                
                 <Layer @ref="_shaderLayer" Id="shader-layer" SourceOptions="ShaderTileSourceOptions"
                        Visibility="@(UserMapSettings.ShowElevationShader)"
-                       Url=@($"/api/shaders/{MissionEditingClient.CurrentMissionData.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") MinZoom="6"
+                       Url=@($"/api/shaders/{MissionEditingClient.CurrentMissionData!.Map.ToMapString()}/{{z}}/{{x}}/{{y}}.webp") MinZoom="6"
                        SourceType="SourceType.XYZ" Opacity="0.20" Format="image/webp" />
-                       
-                 <Layer @ref="_settlementsLayer" Id="settlements-layer" 
-                    SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
-                    MinZoom="6" MaxZoom="17"
-                    SourceOptions="SettlementsTileSourceOptions"
-                    Style="@GetSettlementsLayerStyle()"
-                    Visibility="@(UserMapSettings.ShowBuildingObjects)" />
+                
+                <div> @* Object layers *@
+                     <Layer @ref="_settlementsLayer" Id="settlements-layer" 
+                        SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
+                        MinZoom="6" MaxZoom="17"
+                        SourceOptions="SettlementsTileSourceOptions"
+                        Style="@GetSettlementsLayerStyle()"
+                        Visibility="@(UserMapSettings.ShowBuildingObjects)" />
 
-                 <Layer @ref="_objectsLayer" Id="object-layer" 
-                    SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
-                    MinZoom="12" MaxZoom="17"
-                    SourceOptions="VectorTileSourceOptions"
-                    Style="@GetObjectLayerStyle()"
-                    Visibility="@(UserMapSettings.ShowBuildingObjects)" />
+                    <Layer @ref="_objectsLayer" Id="object-layer" 
+                        SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
+                        MinZoom="12" MaxZoom="17"
+                        SourceOptions="VectorTileSourceOptions"
+                        Style="@GetObjectLayerStyle(false)"
+                        Visibility="@(UserMapSettings.ShowBuildingObjects && DefaultBaseLayerVisible)" />
+
+                    <Layer @ref="_objectsLayerDark" Id="object-layer-dark" 
+                        SourceType="SourceType.VectorMVT" LayerType="LayerType.VectorTile"
+                        MinZoom="12" MaxZoom="17"
+                        SourceOptions="VectorTileSourceOptions"
+                        Style="@GetObjectLayerStyle(true)"
+                        Visibility="@(UserMapSettings.ShowBuildingObjects && DarkBaseLayerVisible)" />
+
+                    
+                </div>
+
+                
 
                 <Layer Id="@MapConstants.DrawingLayerId" 
                     LayerType="LayerType.Vector"

@@ -11,7 +11,7 @@ using System.Text.Json.Serialization;
 
 namespace _2dTileExporter.Exporters;
 
-public class BaseLayerExporter(Map map, int targetZoom,string sourceDirectory, string outputDirectory)
+public class BaseLayerExporter(Map map, int targetZoom,string sourceDirectory, string outputDirectory, bool darkMode = false)
 {
     private const int OutputTileSize = 256;
     private readonly int TargetZoom = targetZoom;
@@ -175,7 +175,8 @@ public class BaseLayerExporter(Map map, int targetZoom,string sourceDirectory, s
                                 terrain = TerrainTypeReader.ReadAll(sourceTile.TerrainDataPath);
                                 localCache[sourceTile.TileIndex] = terrain;
                             }
-                            var (r, g, b) = terrain[idx].ToDefaultColor(map);
+
+                            var (r, g, b) = darkMode ? terrain[idx].ToDarkColor(map) : terrain[idx].ToDefaultColor(map);
                             row[px] = new Rgba32((byte)r, (byte)g, (byte)b, 255);
                         }
                     }

@@ -37,15 +37,24 @@
 .right-menu-content {
     flex-shrink: 0;
     align-items: center;
+    margin-right: 1em;
 }
 
 .h-20 {
     height: 20% !important;
 }
 
-.right-menu-icon {
-    margin-left: 1em;
+.right-menu-icon-group {
     width: 5vw;
+    height: 5vw;
+    max-height: 2em;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.right-menu-icon {
     height: 5vw;
     max-height: 2em;
     flex-shrink: 0;

@@ -12,6 +12,7 @@ Dictionary<Map, MapConfig> mapConfigs = new()
         { 
             SourceDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus", 
             OutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Tiles", 
+            DarkModeOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Tiles_Dark",
             ShaderDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Shaders",
             DetailedSourceDir = @"C:\DCS_Exports\DcsOpsBoard\Detailed_Export\Caucasus",
             DetailedOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Caucasus_Detailed_Tiles",
@@ -26,6 +27,7 @@ Dictionary<Map, MapConfig> mapConfigs = new()
         { 
             SourceDir = @"C:\DCS_Exports\DcsOpsBoard\Kola", 
             OutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Tiles", 
+            DarkModeOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Tiles_Dark",
             ShaderDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Shaders",
             DetailedSourceDir = @"C:\DCS_Exports\DcsOpsBoard\Detailed_Export\Kola",
             DetailedOutputDir = @"C:\DCS_Exports\DcsOpsBoard\Kola_Detailed_Tiles",
@@ -52,6 +54,7 @@ if (!int.TryParse(input, out int mapChoice) || !mapConfigs.ContainsKey((Map)mapC
 var map = (Map)mapChoice;
 var config = mapConfigs[map];
 var sourceDir = config.SourceDir;
+var darkModeOutputDir = config.DarkModeOutputDir;
 var outputDir = config.OutputDir;
 var shaderDir = config.ShaderDir;
 var detailedSourceDir = config.DetailedSourceDir;
@@ -59,6 +62,7 @@ var detailedOutputDir = config.DetailedOutputDir;
 
 Console.WriteLine($"Source: {sourceDir}");
 Console.WriteLine($"Output: {outputDir}");
+Console.WriteLine($"Dark Mode Output: {darkModeOutputDir}");
 Console.WriteLine($"Shaders: {shaderDir}");
 Console.WriteLine();
 Console.WriteLine($"Detailed Source: {detailedSourceDir}");
@@ -79,13 +83,20 @@ _ = int.TryParse(actionInput, out action);
 
 if(action == 0 || action == 1)
 {
+    Console.WriteLine("Export as DarkMode tiles? (y/n)");
+    string darkModeInput = Console.ReadLine() ?? string.Empty;
+    bool exportDarkMode = darkModeInput.Equals("y", StringComparison.CurrentCultureIgnoreCase);
+
+    if(exportDarkMode)
+        outputDir = darkModeOutputDir;
+
     Console.WriteLine("Skip base layer export and start zoom pyramid? (y/n)");
     string skipBase = Console.ReadLine() ?? string.Empty;
     if(!skipBase.Equals("y", StringComparison.CurrentCultureIgnoreCase))
     {
         Console.WriteLine("Press Enter to start export...");
         Console.ReadLine();
-        var exporter = new BaseLayerExporter(map, 15, sourceDir, outputDir);
+        var exporter = new BaseLayerExporter(map, 15, sourceDir, outputDir, exportDarkMode);
         await exporter.ExportBaseSamples();
 
         Console.WriteLine("Base layer export complete. Starting zoom pyramid...");
@@ -150,6 +161,7 @@ class MapConfig
 {
     public required string SourceDir { get; set; }
     public required string OutputDir { get; set; }
+    public required string DarkModeOutputDir { get; set; }
     public required string ShaderDir { get; set; }
     public required string DetailedSourceDir { get; set; }
     public required string DetailedOutputDir { get; set; }

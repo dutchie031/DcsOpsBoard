@@ -20,6 +20,9 @@ public class DetailedTileExporter(Map map, int minZoomLevel, int maxZoomLevel, s
         Method = WebpEncodingMethod.BestQuality
     };
 
+    private string defaultOutputDirectory = Path.Combine(outputDirectory, "default");
+    private string darkModeOutputDirectory = Path.Combine(outputDirectory, "dark");
+
     private int processed;
     private int totalTiles;
     private DateTime startTime;
@@ -30,7 +33,8 @@ public class DetailedTileExporter(Map map, int minZoomLevel, int maxZoomLevel, s
         List<SourceTile> sourceCatalog = BuildSourceCatalog();
         Console.WriteLine($"Found {sourceCatalog.Count} detailed source tiles.");
 
-        Directory.CreateDirectory(outputDirectory);
+        Directory.CreateDirectory(defaultOutputDirectory);
+        Directory.CreateDirectory(darkModeOutputDirectory);
 
         Console.WriteLine("Exporting detailed tiles...");
 
@@ -60,14 +64,6 @@ public class DetailedTileExporter(Map map, int minZoomLevel, int maxZoomLevel, s
         processed = 0;
         startTime = DateTime.Now;
 
-        string zRoot = Path.Combine(outputDirectory, zoom.ToString(CultureInfo.InvariantCulture));
-        if (Directory.Exists(zRoot))
-        {
-            Directory.Delete(zRoot, true);
-        }
-
-        Directory.CreateDirectory(zRoot);
-
         Console.WriteLine($"Generating detailed z{zoom}: {totalTiles} tiles...");
         if (totalTiles == 0)
         {
@@ -93,7 +89,7 @@ public class DetailedTileExporter(Map map, int minZoomLevel, int maxZoomLevel, s
                 {
                     try
                     {
-                        if (await RenderDetailedTile(xTile, yTile, zoom, zRoot, sourceCatalog, localCache))
+                        if (await RenderDetailedTile(xTile, yTile, zoom, sourceCatalog, localCache))
                         {
                             createdTiles.Add((xTile, yTile));
                         }
@@ -129,7 +125,6 @@ public class DetailedTileExporter(Map map, int minZoomLevel, int maxZoomLevel, s
         int xTile,
         int yTile,
         int zoom,
-        string zRoot,
         IReadOnlyList<SourceTile> sourceCatalog,
         Dictionary<int, TerrainType[]> localCache)
     {
@@ -143,10 +138,17 @@ public class DetailedTileExporter(Map map, int minZoomLevel, int maxZoomLevel, s
             return false;
         }
 
+        string zRoot = Path.Combine(defaultOutputDirectory, zoom.ToString(CultureInfo.InvariantCulture));
         string xDir = Path.Combine(zRoot, xTile.ToString(CultureInfo.InvariantCulture));
+
+        string zRootDark = Path.Combine(darkModeOutputDirectory, zoom.ToString(CultureInfo.InvariantCulture));
+        string xDirDark = Path.Combine(zRootDark, xTile.ToString(CultureInfo.InvariantCulture));
+
         Directory.CreateDirectory(xDir);
+        Directory.CreateDirectory(xDirDark);
 
         string outputPath = Path.Combine(xDir, $"{yTile}.webp");
+        string darkOutputPath = Path.Combine(xDirDark, $"{yTile}.webp");
         double[] lonByPx = BuildLonLookup(xTile, zoom);
         double[] latByPy = BuildLatLookup(yTile, zoom);
         bool hasData = false;
@@ -178,12 +180,40 @@ public class DetailedTileExporter(Map map, int minZoomLevel, int maxZoomLevel, s
             }
         });
 
+        using var darkImage = new Image<Rgba32>(OutputTileSize, OutputTileSize);
+        darkImage.ProcessPixelRows(accessor =>
+        {
+            for (int py = 0; py < OutputTileSize; py++)
+            {
+                Span<Rgba32> row = accessor.GetRowSpan(py);
+                double lat = latByPy[py];
+
+                for (int px = 0; px < OutputTileSize; px++)
+                {
+                    double lon = lonByPx[px];
+                    var local = map.CoordConverter.LLtoLO(new LatLong { Lat = lat, Lon = lon });
+
+                    if (!TryGetTerrainType(local.X, local.Y, relevantSources, localCache, out TerrainType terrainType) ||
+                        terrainType == TerrainType.UNKNOWN)
+                    {
+                        row[px] = new Rgba32(0, 0, 0, 0);
+                        continue;
+                    }
+
+                    (int r, int g, int b) = terrainType.ToDarkColor(map);
+                    row[px] = new Rgba32((byte)r, (byte)g, (byte)b, 255);
+                    hasData = true;
+                }
+            }
+        });
+
         if (!hasData)
         {
             return false;
         }
 
         await image.SaveAsync(outputPath, Encoder);
+        await darkImage.SaveAsync(darkOutputPath, Encoder);
         return true;
     }
 

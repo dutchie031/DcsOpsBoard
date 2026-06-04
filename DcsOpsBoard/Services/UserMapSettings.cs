@@ -5,19 +5,21 @@ namespace DcsOpsBoard.Services;
 public interface IUserMapSettings
 {
     bool ShowBaseLayer { get; set; }
+    MapMode MapMode { get; set; }
     bool ShowElevationShader { get; set; }
     bool ShowFriendlyCursors { get; set; }
     bool ShowMyCursor { get; set; }
     bool ShowDrawingLayer { get; set; }
     bool ShowBuildingObjects { get; set; }
     
-    event Action OnSettingsChanged;
+    event Func<Task> OnSettingsChanged;
 }
+
 
 public class UserMapSettings : IUserMapSettings
 {
 
-    public event Action OnSettingsChanged = () => { };
+    public event Func<Task> OnSettingsChanged = () => Task.CompletedTask;
 
     public void NotifySettingsChanged()
     {
@@ -36,6 +38,19 @@ public class UserMapSettings : IUserMapSettings
             }
         }
     } = true;
+
+    public MapMode MapMode
+    {
+        get;
+        set
+        {
+            if(field != value)
+            {
+                field = value;
+                NotifySettingsChanged();
+            }
+        }
+    } = MapMode.Default;
 
     public bool ShowElevationShader
     {
@@ -102,4 +117,10 @@ public class UserMapSettings : IUserMapSettings
         }
     } = true;
 
+}
+
+public enum MapMode
+{
+    Default = 0,
+    Dark = 1
 }

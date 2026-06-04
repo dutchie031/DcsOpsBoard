@@ -35,6 +35,24 @@ public class TileController : ControllerBase
 
     }
 
+    [HttpGet("tiles-dark/{map}/{z}/{x}/{y}.webp")]
+    public IActionResult GetDarkTile(string map, int z, int x, int y)
+    {
+        this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+        if(z < 6 || z > 15)
+        {
+            return NoContent();
+        }
+
+        string filePath = Path.Combine(BaseDirectory, map, "base-dark", z.ToString(), x.ToString(), $"{y}.webp");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NoContent();
+        }
+        return PhysicalFile(filePath, "image/webp");
+
+    }
+
     [HttpGet("detailed-tiles/{map}/{z}/{x}/{y}.webp")]
     public IActionResult GetDetailedTile(string map, int z, int x, int y)
     {
@@ -44,7 +62,24 @@ public class TileController : ControllerBase
             return NoContent();
         }
 
-        string filePath = Path.Combine(BaseDirectory, map, "detailed", z.ToString(), x.ToString(), $"{y}.webp");
+        string filePath = Path.Combine(BaseDirectory, map, "detailed", "default", z.ToString(), x.ToString(), $"{y}.webp");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NoContent();
+        }
+        return PhysicalFile(filePath, "image/webp");
+    }
+
+    [HttpGet("detailed-tiles-dark/{map}/{z}/{x}/{y}.webp")]
+    public IActionResult GetDetailedDarkTile(string map, int z, int x, int y)
+    {
+        this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+        if(z < 15 || z > 17)
+        {
+            return NoContent();
+        }
+
+        string filePath = Path.Combine(BaseDirectory, map, "detailed", "dark", z.ToString(), x.ToString(), $"{y}.webp");
         if (!System.IO.File.Exists(filePath))
         {
             return NoContent();
@@ -106,7 +141,7 @@ public class TileController : ControllerBase
     public IActionResult GetSettlementsTile(string map, int z, int x, int y)
     {
         //TODO UPDATE CACHE ONES TILES ARE CORRECT
-        this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=1, immutable";
+        this.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
         string filePath = Path.Combine(BaseDirectory, map, "settlements", z.ToString(), x.ToString(), $"{y}.mvt");
         if (!System.IO.File.Exists(filePath))
         {

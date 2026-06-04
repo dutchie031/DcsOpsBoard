@@ -132,12 +132,6 @@
     
     public async ValueTask DisposeAsync()
     {
-        if (_jsModule != null)
-        {
-            await _jsModule.InvokeVoidAsync("cleanup");
-            await _jsModule.DisposeAsync();
-        }
-        
         _dotNetRef?.Dispose();
     }
 }

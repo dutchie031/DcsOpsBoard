@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -89,4 +90,7 @@ public class DetailedTerrainMetadata
 
     [JsonPropertyName("sampleInterval")]
     public int SampleInterval { get; set; }
+
+    [JsonPropertyName("vertices")]
+    public List<TileOrigin>? Vertices { get; set; }
 }

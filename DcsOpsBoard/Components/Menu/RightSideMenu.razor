@@ -9,11 +9,16 @@
     
     protected override void OnInitialized()
     {
-        UserMapSettings.OnSettingsChanged += StateHasChanged;
+        UserMapSettings.OnSettingsChanged += OnSettingsChanged;
         MissionEditingClient.OnMissionChanged += OnMissionChanged;
         base.OnInitialized();
     }
     
+    private async Task OnSettingsChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }   
+
     private async Task OnMissionChanged()
     {
         await InvokeAsync(StateHasChanged);
@@ -30,32 +35,52 @@
 <div id="right-menu-body">
     <div class="right-menu-grouping h-25">
          <div class="right-menu-item">
-            <div class="right-menu-icon @(UserMapSettings.ShowBaseLayer ? "selected" : "")" @onclick="() => UserMapSettings.ShowBaseLayer = !UserMapSettings.ShowBaseLayer">
-                <i class="bi bi-map"></i>
+            <div class="right-menu-icon-group">
+                <div class="right-menu-icon w-50 @(UserMapSettings.ShowBaseLayer ? "selected" : "")" @onclick="() => UserMapSettings.ShowBaseLayer = !UserMapSettings.ShowBaseLayer">
+                    <i class="bi bi-map"></i>
+                </div>
+                @if(UserMapSettings.MapMode == MapMode.Dark)
+                {
+                    <div class="right-menu-icon w-50 @(UserMapSettings.ShowBaseLayer ? "selected" : "")" @onclick="() => UserMapSettings.MapMode = MapMode.Default">
+                        <i class="bi bi-moon-stars"></i>
+                    </div>
+                } 
+                else
+                {
+                    <div class="right-menu-icon w-50 @(UserMapSettings.ShowBaseLayer ? "selected" : "")" @onclick="() => UserMapSettings.MapMode = MapMode.Dark">
+                        <i class="bi bi-sun"></i>
+                    </div>
+                } 
             </div>
             <div class="right-menu-content">
                 <span>Base Layer</span>
             </div>
         </div>
         <div class="right-menu-item">
-            <div class="right-menu-icon @(UserMapSettings.ShowElevationShader ? "selected" : "")" @onclick="() => UserMapSettings.ShowElevationShader = !UserMapSettings.ShowElevationShader">
-                <i class="icon-l icon-mountain"></i>
+            <div class="right-menu-icon-group">
+                <div class="right-menu-icon w-100 @(UserMapSettings.ShowElevationShader ? "selected" : "")" @onclick="() => UserMapSettings.ShowElevationShader = !UserMapSettings.ShowElevationShader">
+                    <i class="icon-l icon-mountain"></i>
+                </div>
             </div>
             <div class="right-menu-content">
                 <span>Elevation Data</span>
             </div>
         </div>
         <div class="right-menu-item">
-            <div class="right-menu-icon @(UserMapSettings.ShowBuildingObjects ? "selected" : "")" @onclick="() => UserMapSettings.ShowBuildingObjects = !UserMapSettings.ShowBuildingObjects">
-                <i class="bi bi-building"></i>
+            <div class="right-menu-icon-group">
+                <div class="right-menu-icon w-100 @(UserMapSettings.ShowBuildingObjects ? "selected" : "")" @onclick="() => UserMapSettings.ShowBuildingObjects = !UserMapSettings.ShowBuildingObjects">
+                    <i class="bi bi-building"></i>
+                </div>
             </div>
             <div class="right-menu-content">
                 <span>Building Objects</span>
             </div>
         </div>
         <div class="right-menu-item">
-            <div class="right-menu-icon @(UserMapSettings.ShowDrawingLayer ? "selected" : "")" @onclick="() => UserMapSettings.ShowDrawingLayer = !UserMapSettings.ShowDrawingLayer">
-                <i class="bi bi-brush"></i>
+            <div class="right-menu-icon-group">
+                <div class="right-menu-icon w-100 @(UserMapSettings.ShowDrawingLayer ? "selected" : "")" @onclick="() => UserMapSettings.ShowDrawingLayer = !UserMapSettings.ShowDrawingLayer">
+                    <i class="bi bi-brush"></i>
+                </div>
             </div>
             <div class="right-menu-content">
                 <span>Drawing Layer</span>
@@ -69,8 +94,10 @@
 
      <div class="right-menu-grouping h-20">
        <div class="right-menu-item">
-            <div class="right-menu-icon @(UserMapSettings.ShowFriendlyCursors ? "selected" : "")" @onclick="() => UserMapSettings.ShowFriendlyCursors = !UserMapSettings.ShowFriendlyCursors">
-                <i class="bi bi-cursor"></i>
+            <div class="right-menu-icon-group">
+                <div class="right-menu-icon w-100 @(UserMapSettings.ShowFriendlyCursors ? "selected" : "")" @onclick="() => UserMapSettings.ShowFriendlyCursors = !UserMapSettings.ShowFriendlyCursors">
+                    <i class="bi bi-cursor"></i>
+                </div>
             </div>
             <div class="right-menu-content">
                 <span>Friendly Cursors</span>

@@ -4,8 +4,10 @@ window.dcsMap._state = {
     map: null,
     activeMap: "caucasus",
     detailedSource: null,
+    detailedDarkSource: null,
     buildupSource: null,
     objectsSource: null,
+    objectsSourceDark: null,
     settlementsSource: null,
     detailedCoverageByMap: new Map(),
     buildupCoverageByMap: new Map(),
@@ -150,6 +152,26 @@ window.dcsMap.configureDetailedLayerLookup = function (map) {
         console.warn("dcsMap: detailed-layer not found");
     }
 
+    const detailedLayerDark = map.getAllLayers().find((l) => l.get("id") === "detailed-layer-dark");
+    if (detailedLayerDark) {
+        const source = detailedLayerDark.getSource();
+        if (source && typeof source.setTileUrlFunction === "function") {
+            state.detailedDarkSource = source;
+            source.setTileUrlFunction(function (tileCoord) {
+                if (!tileCoord) return undefined;
+                const z = tileCoord[0], x = tileCoord[1], y = tileCoord[2];
+                if (z < 14 || z > 17) return undefined;
+                const coverage = state.detailedCoverageByMap.get(state.activeMap);
+                if (!coverage || !window.dcsMap.isCovered(coverage, z, x, y)) return undefined;
+                return `/api/detailed-tiles-dark/${state.activeMap}/${z}/${x}/${y}.webp`;
+            });
+        } else {
+            console.warn("dcsMap: detailed-layer source does not support setTileUrlFunction");
+        }
+    } else {
+        console.warn("dcsMap: detailed-layer-dark not found");
+    }
+
     // --- objects MVT layer ---
     const objectsLayer = map.getAllLayers().find((l) => l.get("id") === "object-layer");
     if (objectsLayer) {
@@ -185,6 +207,42 @@ window.dcsMap.configureDetailedLayerLookup = function (map) {
         });
     } else {
         console.warn("dcsMap: object-layer not found");
+    }
+
+    const objectsLayerDark = map.getAllLayers().find((l) => l.get("id") === "object-layer-dark");
+    if (objectsLayerDark) {
+        const source = new ol.source.VectorTile({
+            format: new ol.format.MVT({
+                featureClass: ol.Feature
+            }),
+            projection: "EPSG:3857",
+            wrapX: false,
+            tileGrid: ol.tilegrid.createXYZ({
+                maxZoom: 17,
+                tileSize: 512
+            }),
+            tileUrlFunction: function (tileCoord) {
+                if (!tileCoord) return undefined;
+                const z = tileCoord[0];
+                const x = tileCoord[1];
+                const y = tileCoord[2];
+                if (z < 12 || z > 17) return undefined;
+                const coverage = state.objectsCoverageByMap.get(state.activeMap);
+                if (!coverage || !window.dcsMap.isCovered(coverage, z, x, y)) return undefined;
+                return `/api/objects/${state.activeMap}/${z}/${x}/${y}.mvt`;
+            },
+            tileLoadFunction: customLoadMvtTile
+        });
+
+        state.objectsSourceDark = source;
+        objectsLayerDark.setSource(source);
+        source.on("tileloaderror", function (evt) {
+            const tile = evt.tile;
+            const coord = tile && tile.getTileCoord ? tile.getTileCoord() : null;
+            console.warn("dcsMap: object tile failed to decode", coord, evt);
+        });
+    } else {
+        console.warn("dcsMap: object-layer-dark not found");
     }
 
     const settlementsLayer = map.getAllLayers().find((l) => l.get("id") === "settlements-layer");
@@ -269,7 +327,7 @@ window.dcsMap.isCovered = function (coverage, z, x, y) {
 
 window.dcsMap.refreshAllSources = function () {
     const state = window.dcsMap._state;
-    for (const source of [state.detailedSource, state.buildupSource, state.objectsSource, state.settlementsSource]) {
+    for (const source of [state.detailedSource, state.buildupSource, state.objectsSource, state.settlementsSource, state.detailedDarkSource]) {
         if (!source) continue;
         if (typeof source.clear === "function") {
             source.clear();

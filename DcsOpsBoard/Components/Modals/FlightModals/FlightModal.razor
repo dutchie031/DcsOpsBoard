@@ -73,12 +73,12 @@
         }
     </Header>
     <Body>
-        <div class="container-fluid">
+        <div class="container-fluid modal-content bg-transparent" style="min-width: 500px;">
             <div class="row">
-                <div class="col-12">
+                <div class="col-6">
                     <div class="mb-3">
                         <label for="flightName" class="form-label">Flight Name</label>
-                        <input type="text" id="flightName" class="form-control" @bind="SelectedFlight.GroupName" readonly="@IsReadOnly" />
+                        <input type="text" id="flightName" class="form-control input-text" @bind="SelectedFlight.GroupName" readonly="@IsReadOnly" />
                     </div>
                     
                 </div>

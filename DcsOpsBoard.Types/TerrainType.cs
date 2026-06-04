@@ -28,6 +28,7 @@ public static class TerrainTypeExtensions
     {
         return terrainType switch
         {
+            255 => TerrainType.UNKNOWN,
             1 => TerrainType.LAND,
             2 => TerrainType.SHALLOW_WATER,
             3 => TerrainType.WATER,
@@ -61,6 +62,19 @@ public static class TerrainTypeExtensions
             TerrainType.LAND_CITY => (185, 160, 135),
             TerrainType.LAND_TOWN => (165, 145, 125),
             _ => (0, 0, 0)
+        };
+    }
+
+    //TODO: Should probably be RGBA and have transparency
+    public static (int r, int g, int b) ToDarkColor(this TerrainType terrainType, Map map)
+    {
+        return terrainType switch
+        {
+            TerrainType.SHALLOW_WATER => (114, 226, 232),
+            TerrainType.WATER => (0, 86, 122),
+            TerrainType.ROAD => (193, 196, 214),
+            TerrainType.RUNWAY => (202, 205, 224),
+            _ => (34, 36, 48)
         };
     }
 }
