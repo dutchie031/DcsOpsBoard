@@ -13,10 +13,36 @@
         <div class="draggable-modal-header" 
              @onmousedown="OnMouseDown"
              @onmousedown:preventDefault>
-            @Header
+            <div class="container-fluid">
+                <div class="row">
+                    @if(Collapsible)
+                    {
+                        <div class="col-2 d-flex justify-content-start align-items-center">
+                            <button class="btn btn-sm btn-secondary me-2" @onclick="() => _isBodyCollapsed = !_isBodyCollapsed" @onclick:stopPropagation>
+                                @if (_isBodyCollapsed)
+                                {
+                                    <i class="bi bi-chevron-double-right"></i>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-chevron-double-down"></i>
+                                }
+                            </button>
+                        </div>
+                    }
+                    <div class="@((Collapsible ? "col-10" : "col-12"))">
+                        <div class="draggable-modal-body-container">
+                            @Header
+                        </div>
+                        
+                    </div>
+                </div>
+
+            </div>
+            
         </div>
         
-        <div class="draggable-modal-body">
+        <div class="draggable-modal-body @( _isBodyCollapsed ? "collapsed" : "" )">
             @Body
         </div>
         
@@ -53,6 +79,9 @@
     
     [Parameter]
     public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public bool Collapsible { get; set; } = true;
     
     private IJSObjectReference? _jsModule;
     private DotNetObjectReference<DraggableModal>? _dotNetRef;
@@ -64,6 +93,16 @@
     private double _startY;
     private double _offsetX;
     private double _offsetY;
+
+    private bool _isBodyCollapsed 
+    {
+        get => field;
+        set
+        {
+            field = value;
+            StateHasChanged();
+        }
+    }
     
     protected override void OnInitialized()
     {

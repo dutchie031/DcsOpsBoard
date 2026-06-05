@@ -1,5 +1,7 @@
-﻿@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
+﻿@using DcsMissionParser.Net.Annotations
+@using DcsMissionParser.Net.Objects.Coalitions.Countries.Groups
 @using DcsMissionParser.Net.Objects.Coalitions.Units.Plane
+@using DcsMissionParser.Net.Objects.Commons
 @using DcsOpsBoard.Components.Modals.DraggableModal
 @using DcsOpsBoard.Hubs.Clients
 @using DcsOpsBoard.Types.Enums
@@ -21,8 +23,10 @@
         _modalVisible = false;
     }
 
-    private IEnumerable<PlaneType> PlaneTypes => PlaneType.GetAll<PlaneType>();
-
+    private IEnumerable<PlaneType> PlaneTypes => PlaneType.GetAll<PlaneType>().OrderBy(pt => pt.Value);
+    private PlaneType? SelectedPlaneType => SelectedFlight?.Units.FirstOrDefault()?.Type;
+    private Skill? SelectedSkill => SelectedFlight?.Units.FirstOrDefault()?.Skill;
+    
     private PlaneGroup? SelectedFlight;
     private bool IsReadOnly;
     
@@ -59,6 +63,14 @@
         StateHasChanged();
     }
 
+    private async Task OnTaskingSelected(PlaneTasking tasking)
+    {
+        if (SelectedFlight == null)
+            return;
+
+        SelectedFlight.Tasking = tasking;
+        await InvokeAsync(StateHasChanged);
+    }
 }
 
 <DraggableModal ZIndex="1100" IsVisible="_modalVisible" OnClose="CloseWithoutSaving">
@@ -82,11 +94,43 @@
                     </div>
                     
                 </div>
+                <div class="col-6">
+                    <div class="mb-3">
+                        <label for="taskingType" class="form-label">Tasking</label>
+                        <select id="taskingType" class="form-select" disabled="@IsReadOnly">
+                            @foreach (var tasking in StringEnum.GetAll<PlaneTasking>() )
+                            {
+                                <option value="@tasking" selected="@(SelectedFlight.Tasking == tasking)" @onselect="() => OnTaskingSelected(tasking)">@tasking.Value</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <div class="mb-3">
+                        <label for="planeType" class="form-label">Plane Type</label>
+                        <select id="planeType" class="form-select" disabled="@IsReadOnly">
+                            @foreach (var planeType in PlaneTypes)
+                            {
+                                <option value="@planeType" selected="@(SelectedPlaneType != null && SelectedPlaneType.Value == planeType.Value)">@planeType.Value</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="mb-3">
+                        <label for="skill" class="form-label">Skill</label>
+                        <select id="skill" class="form-select" disabled="@IsReadOnly">
+                            @foreach (var skill in StringEnum.GetAll<Skill>())
+                            {
+                                <option value="@skill" selected="@(SelectedSkill != null && SelectedSkill.Value == skill.Value)">@skill.Value</option>
+                            }
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
     </Body>
-    <Footer>
-        <button class="btn btn-secondary" @onclick="CloseWithoutSaving">Cancel</button>
-        <button class="btn btn-primary" @onclick="SaveAndClose">Save</button>
-    </Footer>
 </DraggableModal>
+

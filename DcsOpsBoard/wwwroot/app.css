@@ -150,6 +150,18 @@ body {
     color: #ffffff;
 }
 
+.modal-content select {
+    background-color: #262938;
+    color: #ffffff;
+}
+
+.modal-content option {
+    background-color: #262938;
+    color: #ffffff;
+}
+
+
+
 .modal-content textarea {
     background-color: #262938;
     color: #ffffff;

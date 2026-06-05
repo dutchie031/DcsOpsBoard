@@ -30,10 +30,20 @@
 }
 
 .draggable-modal-body {
-    padding: 16px;
+    
     overflow-y: auto;
     flex: 1;
     color: white;
+    max-height: 100vh;
+    transition: max-height 0.3s ease;
+}
+
+.draggable-modal-body.collapsed {
+    max-height: 0;
+}
+
+.draggable-modal-body-container {
+    padding: 16px;
 }
 
 .draggable-modal-footer {
@@ -45,3 +55,4 @@
     gap: 8px;
     justify-content: flex-end;
 }
+
